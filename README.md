@@ -11,7 +11,7 @@ To develop a system that predicts property values using historical datasets and 
 - Preprocessing and feature engineering on housing datasets.
 - Regressors: Random Forest and Linear Regression.
 - Deployment of a Streamlit UI for price estimation.
-- Metrics: MAE, RMSE, and R-squared.
+- Metrics: MAE, RMSE, and R².
 
 #### Phase 2: Agentic Advisory System
 - Reasoning layer using LangGraph.
@@ -20,11 +20,13 @@ To develop a system that predicts property values using historical datasets and 
 - Validation logic for noisy data.
 
 ## Technology Stack
-- **ML**: scikit-learn, pandas, numpy
-- **Orchestration**: LangGraph
+- **Programming Language**: Python
+- **Machine Learning**: scikit learn, pandas, numpy
+- **Visualization**: matplotlib, seaborn
+- **Agent Orchestration**: LangGraph
+- **Retrieval-Augmented Generation (RAG)**: FAISS (vector store)
 - **Interface**: Streamlit
-- **Data**: FAISS / Vector stores
-- **Hosting**: Hugging Face / Streamlit Cloud
+- **Deployment**: Streamlit Cloud / Hugging Face Spaces
 
 ## Data Sources
 - [Housing Prices Dataset](https://www.kaggle.com/datasets/yasserh/housing-prices-dataset)
