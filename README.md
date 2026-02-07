@@ -19,6 +19,10 @@ To develop a system that predicts property values using historical datasets and 
 - Structured PDF reports with investment breakdown.
 - Validation logic for noisy data.
 
+## System Architecture
+
+![ML Architecture Diagram](assets/ml-architecture.png)
+
 ## Technology Stack
 - **Programming Language**: Python
 - **Machine Learning**: scikit learn, pandas, numpy
