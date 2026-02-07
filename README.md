@@ -19,6 +19,10 @@ To develop a system that predicts property values using historical datasets and 
 - Structured PDF reports with investment breakdown.
 - Validation logic for noisy data.
 
+## System Architecture
+
+![ML Architecture Diagram](assets/ml-architecture.png)
+
 ## Technology Stack
 - **Programming Language**: Python
 - **Machine Learning**: scikit learn, pandas, numpy
@@ -37,6 +41,8 @@ To develop a system that predicts property values using historical datasets and 
 1. **Clone & Enter**
    ```bash
    git clone https://github.com/NssGourav/property-valuation-agentic-advisor.git
+   ```
+   ```bash
    cd property-valuation-agentic-advisor
    ```
 
