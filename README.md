@@ -41,6 +41,8 @@ To develop a system that predicts property values using historical datasets and 
 1. **Clone & Enter**
    ```bash
    git clone https://github.com/NssGourav/property-valuation-agentic-advisor.git
+   ```
+   ```bash
    cd property-valuation-agentic-advisor
    ```
 
