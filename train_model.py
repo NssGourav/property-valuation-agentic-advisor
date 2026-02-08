@@ -99,13 +99,14 @@ def train_models(X: pd.DataFrame, y: pd.Series):
         test_size=TEST_SIZE, 
         random_state=RANDOM_STATE
     )
-    #Random Forest
+    
+    # Random Forest
     rf_model = RandomForestRegressor(n_estimators=100, random_state=RANDOM_STATE)
     rf_model.fit(X_train, y_train)
     logging.info("--- Random Forest Evaluation ---")
     evaluate_model(rf_model, X_test, y_test)
     
-    # Linear Regression 
+    # Linear Regression
     lr_model = LinearRegression()
     lr_model.fit(X_train, y_train)
     logging.info("--- Linear Regression Evaluation ---")
