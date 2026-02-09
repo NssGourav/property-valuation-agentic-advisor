@@ -47,6 +47,4 @@ def main():
     app = ValuationApp()
     app.render_header()
     app.render_form()
-
-if __name__ == "__main__":
-    main()
+main()
