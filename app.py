@@ -4,9 +4,10 @@ import numpy as np
 import joblib
 from pathlib import Path
 
-PAGE_TITLE = "Property Valuation Advisor"
+PAGE_TITLE = "Intelligent Property Valuation"
 PAGE_ICON = "🏠"
 MODEL_PATH = Path("models/house_model.pkl")
+METADATA_PATH = Path("assets/model_metadata.json")
 
 NUMERICAL_FEATURES = ['area', 'bedrooms', 'bathrooms', 'stories', 'parking']
 BINARY_FEATURES = ['mainroad', 'guestroom', 'basement', 'hotwaterheating', 'airconditioning']
@@ -111,6 +112,48 @@ def main():
     st.set_page_config(page_title=PAGE_TITLE, page_icon=PAGE_ICON)
     
     app = ValuationApp()
-    app.render_header()
-    app.render_form()
+    
+    tab1, tab2 = st.tabs(["🔮 Prediction", "📊 Model Insights"])
+    
+    with tab1:
+        app.render_header()
+        app.render_form()
+        
+    with tab2:
+        st.header("Model Performance & Insights")
+        if METADATA_PATH.exists():
+            with open(METADATA_PATH, 'r') as f:
+                metadata = json.load(f)
+            
+            # Metrics
+            m1, m2, m3 = st.columns(3)
+            metrics = metadata["metrics"]
+            m1.metric("R² Score", f"{metrics['r2']:.3f}")
+            m2.metric("MAE", f"₹{metrics['mae']:,.0f}")
+            m3.metric("RMSE", f"₹{metrics['rmse']:,.0f}")
+            
+            st.markdown("---")
+            st.subheader("Feature Importance")
+            st.info("This chart shows which property features most significantly influence the price prediction.")
+            
+            importance_df = pd.DataFrame({
+                'Feature': list(metadata["feature_importance"].keys()),
+                'Importance': list(metadata["feature_importance"].values())
+            }).sort_values(by='Importance', ascending=True)
+            
+            st.bar_chart(data=importance_df, x='Feature', y='Importance', horizontal=True)
+            
+            st.markdown("---")
+            st.subheader("Methodology")
+            st.write("""
+            The model uses a **Random Forest Regressor**, a robust machine learning algorithm that builds multiple 
+            decision trees and merges them together to get a more accurate and stable prediction.
+            
+            **Key Features Analyzed:**
+            - **Physical attributes:** Area, Bedrooms, Bathrooms, Stories.
+            - **Infrastructural features:** Main road access, Basement, Air conditioning.
+            - **Property status:** Parking available, Guest room, Hot water heating.
+            """)
+        else:
+            st.warning("Model metadata not found. Please run `train_model.py` to generate insights.")
 main()

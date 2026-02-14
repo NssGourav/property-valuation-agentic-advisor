@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import shutil
+import json
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
@@ -140,7 +141,26 @@ def main():
     y = processed_data[TARGET]
     
     rf_model, _ = train_models(X, y)
+    
+    # Save model
     save_model(rf_model, MODEL_FILE)
+    importances = rf_model.feature_importances_
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+    predictions = rf_model.predict(X_test)
+    
+    metadata = {
+        "metrics": {
+            "r2": r2_score(y_test, predictions),
+            "mae": mean_absolute_error(y_test, predictions),
+            "rmse": np.sqrt(mean_squared_error(y_test, predictions))
+        },
+        "feature_importance": dict(zip(FEATURES, importances.tolist()))
+    }
+    
+    metadata_path = ASSETS_DIR / "model_metadata.json"
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=4)
+    logging.info(f"Model metadata saved to {metadata_path}")
 
 if __name__ == "__main__":
     main()
