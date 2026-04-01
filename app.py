@@ -5,6 +5,12 @@ import joblib
 import json
 from pathlib import Path
 
+from agent import PropertyAdvisorAgent
+
+@st.cache_resource
+def load_advisor_agent():
+    return PropertyAdvisorAgent()
+
 PAGE_TITLE = "Intelligent Property Valuation"
 PAGE_ICON = "🏠"
 MODEL_PATH = Path("models/house_model.pkl")
@@ -106,8 +112,32 @@ class ValuationApp:
                 st.metric("Amenities", f"{sum([1 for val in [mainroad, guestroom, basement, hotwaterheating, airconditioning] if val == 'Yes'])}/5")
             
             st.balloons()
+            
+            # --- Agentic Advisory Layer ---
+            st.markdown("---")
+            st.subheader("🤖 AI Investment Advisor")
+            agent_input = {
+                "area": area,
+                "bedrooms": bedrooms,
+                "bathrooms": bathrooms,
+                "stories": stories,
+                "mainroad": mainroad,
+                "guestroom": guestroom,
+                "basement": basement,
+                "hotwaterheating": hotwaterheating,
+                "airconditioning": airconditioning,
+                "parking": parking
+            }
+            
+            advisor = load_advisor_agent()
+            with st.spinner("Analyzing market trends and regulations..."):
+                advice = advisor.run(agent_input, prediction)
+                
+            st.success("**Investment Summary & Recommendation**")
+            st.write(advice)
+            
         except Exception as e:
-            st.error(f"❌ Prediction failed: {e}")
+            st.error(f"❌ Prediction or Advisory failed: {e}")
 
 def main():
     st.set_page_config(page_title=PAGE_TITLE, page_icon=PAGE_ICON)
