@@ -68,50 +68,46 @@ class ValuationApp:
     def _predict_price(self, area, bedrooms, bathrooms, stories, parking,
                       mainroad, guestroom, basement, hotwaterheating, airconditioning):
 
-        # ── Step 1: Build the raw input dict (numeric values only for validation) ──
+        # Inputs for validation
         raw_inputs = {
-            "area":      area,
-            "bedrooms":  bedrooms,
+            "area": area,
+            "bedrooms": bedrooms,
             "bathrooms": bathrooms,
-            "stories":   stories,
-            "parking":   parking,
+            "stories": stories,
+            "parking": parking,
         }
 
-        # ── Step 2: Validate inputs ──────────────────────────────────────────
+        # Validate inputs
         validator = PropertyInputValidator()
         validation = validator.validate(raw_inputs)
 
-        # Always show warnings (they do not block prediction)
         if validation.has_warnings:
             st.markdown("---")
             st.markdown("#### ⚠️ Input Warnings")
             for warn in validation.warnings:
                 st.warning(warn)
 
-        # Show errors and abort if any hard/cross-field rule is violated
+        # Block prediction on errors
         if not validation.is_valid:
             st.markdown("---")
-            st.markdown("#### ❌ Validation Errors — Prediction Blocked")
+            st.markdown("#### ❌ Validation Errors")
             for err in validation.errors:
                 st.error(err)
-            st.info(
-                "Please correct the highlighted fields and try again. "
-                "Valid inputs ensure reliable price estimates."
-            )
+            st.info("Please correct the details and try again.")
             return
 
-        # ── Step 3: Encode binary features and build model input ─────────────
+        # Build feature dataframe
         input_data = {
-            "area":             area,
-            "bedrooms":         bedrooms,
-            "bathrooms":        bathrooms,
-            "stories":          stories,
-            "mainroad":         1 if mainroad == "Yes" else 0,
-            "guestroom":        1 if guestroom == "Yes" else 0,
-            "basement":         1 if basement == "Yes" else 0,
-            "hotwaterheating":  1 if hotwaterheating == "Yes" else 0,
-            "airconditioning":  1 if airconditioning == "Yes" else 0,
-            "parking":          parking,
+            "area": area,
+            "bedrooms": bedrooms,
+            "bathrooms": bathrooms,
+            "stories": stories,
+            "mainroad": 1 if mainroad == "Yes" else 0,
+            "guestroom": 1 if guestroom == "Yes" else 0,
+            "basement": 1 if basement == "Yes" else 0,
+            "hotwaterheating": 1 if hotwaterheating == "Yes" else 0,
+            "airconditioning": 1 if airconditioning == "Yes" else 0,
+            "parking": parking,
         }
 
         features = [
@@ -121,7 +117,7 @@ class ValuationApp:
 
         input_df = pd.DataFrame([input_data], columns=features)
 
-        # ── Step 4: Run prediction ────────────────────────────────────────────
+        # Run prediction
         try:
             prediction = self.model.predict(input_df)[0]
 
