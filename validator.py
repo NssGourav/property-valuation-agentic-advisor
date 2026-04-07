@@ -32,29 +32,50 @@ class ValidationResult:
         self.warnings.append(message)
 
 class PropertyInputValidator:
+    def _coerce_numeric(self, feat: str, val, result: ValidationResult):
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            result.add_error(f"{feat.capitalize()} must be a numeric value")
+            return None
+
     def validate(self, inputs: dict) -> ValidationResult:
         result = ValidationResult()
+        numeric_inputs = {}
+
+        expected_fields = set(HARD_BOUNDS) | set(SOFT_BOUNDS)
+        for feat in expected_fields:
+            val = inputs.get(feat)
+            if val is None:
+                if feat in HARD_BOUNDS:
+                    result.add_error(f"Missing field: {feat}")
+                continue
+
+            numeric_val = self._coerce_numeric(feat, val, result)
+            if numeric_val is not None:
+                numeric_inputs[feat] = numeric_val
         
         # Check hard bounds
         for feat, (lo, hi) in HARD_BOUNDS.items():
-            val = inputs.get(feat)
-            if val is None:
-                result.add_error(f"Missing field: {feat}")
+            if feat not in numeric_inputs:
                 continue
+            val = numeric_inputs[feat]
             if not (lo <= val <= hi):
-                result.add_error(f"{feat.capitalize()} ({val}) is out of range [{lo}-{hi}]")
+                result.add_error(f"{feat.capitalize()} ({inputs.get(feat)}) is out of range [{lo}-{hi}]")
 
         # Check soft bounds
         for feat, (lo, hi) in SOFT_BOUNDS.items():
-            val = inputs.get(feat)
-            if val is not None and not (lo <= val <= hi):
-                result.add_warning(f"{feat.capitalize()} ({val}) is unusual for this dataset")
+            if feat not in numeric_inputs:
+                continue
+            val = numeric_inputs[feat]
+            if val and not (lo <= val <= hi):
+                result.add_warning(f"{feat.capitalize()} ({inputs.get(feat)}) is unusual for this dataset")
 
-        # Cross-field logic — only run when all required fields are present and within hard bounds
-        cross_fields = ("area", "bedrooms", "bathrooms", "stories")
-        all_valid = all(
-            (v := inputs.get(f)) is not None and HARD_BOUNDS[f][0] <= v <= HARD_BOUNDS[f][1]
-            for f in cross_fields
+        # Cross-field logic
+        area = numeric_inputs.get("area", 0)
+        beds = numeric_inputs.get("bedrooms", 1)
+        baths = numeric_inputs.get("bathrooms", 1)
+        stories = numeric_inputs.get("stories", 1)
         )
 
         if all_valid:
