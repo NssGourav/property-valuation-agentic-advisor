@@ -207,7 +207,7 @@ class ValuationApp:
             st.caption(str(e))
 
         st.markdown("---")
-        st.subheader("📄 Export Report")
+        st.subheader("📄 Property Investment Brief")
         metadata = self._load_metadata()
         report_details = {
             "area": area,
@@ -230,10 +230,10 @@ class ValuationApp:
             metadata=metadata,
             comps=comps,
         )
-        file_name = f"valuation-report-{datetime.now().strftime('%Y%m%d-%H%M%S')}.pdf"
-        st.caption("Download a polished PDF summary of the valuation, advisory, and key model metrics.")
+        file_name = f"property-investment-brief-{datetime.now().strftime('%Y%m%d-%H%M%S')}.pdf"
+        st.caption("Download the Property Investment Brief with valuation, comparable sales, model metrics, and advisory.")
         st.download_button(
-            label="Download PDF Report",
+            label="Download Investment Report (PDF)",
             data=report_bytes,
             file_name=file_name,
             mime="application/pdf",

@@ -36,6 +36,15 @@ def _clean_advice(text: str) -> list[str]:
     return paragraphs or ["No advisory summary was available."]
 
 
+def _get_advisory_mode(advisory_text: str) -> str:
+    normalized = advisory_text.lower()
+    if "advisory unavailable" in normalized:
+        return "Advisory unavailable"
+    if "fallback advice" in normalized:
+        return "Fallback summary"
+    return "Groq investment advisory"
+
+
 def build_property_report(
     property_details: dict[str, object],
     estimated_price: float,
@@ -85,7 +94,7 @@ def build_property_report(
     )
 
     story = [
-        Paragraph("Property Valuation Report", title_style),
+        Paragraph("Property Investment Brief", title_style),
         Paragraph(
             f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             note_style,
@@ -96,7 +105,7 @@ def build_property_report(
     headline_table = Table(
         [
             ["Estimated Property Value", _format_currency(estimated_price)],
-            ["Report Type", "Prediction + Agentic Advisory Export"],
+            ["Report Type", "Property Investment Brief"],
         ],
         colWidths=[70 * mm, 90 * mm],
     )
@@ -116,6 +125,33 @@ def build_property_report(
         )
     )
     story.extend([headline_table, Spacer(1, 10)])
+
+    story.append(Paragraph("Investment Breakdown", section_style))
+    breakdown_rows = [
+        ["Signal", "Summary"],
+        ["Valuation Estimate", _format_currency(estimated_price)],
+        ["Validation Warnings", str(len(validation_warnings or []))],
+        ["Comparable Sales Included", str(min(len(comps or []), 3))],
+        ["Advisory Mode", _get_advisory_mode(advisory_text)],
+    ]
+    breakdown_table = Table(breakdown_rows, colWidths=[55 * mm, 105 * mm], hAlign="LEFT")
+    breakdown_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#DBEAFE")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1E3A8A")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.white),
+                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#BFDBFE")),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    story.extend([breakdown_table, Spacer(1, 10)])
 
     story.append(Paragraph("Property Details", section_style))
     property_rows = [["Feature", "Value"]]
