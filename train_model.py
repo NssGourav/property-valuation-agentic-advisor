@@ -74,7 +74,9 @@ def load_data(file_path: Path) -> pd.DataFrame:
         except Exception as exc:
             logging.error(
                 "Failed to download dataset from Kaggle. Ensure network access and Kaggle "
-                "credentials are configured. Original error: %s",
+                "credentials are configured. Place `kaggle.json` in `~/.kaggle/` with "
+                "the correct permissions or set `KAGGLE_USERNAME` and `KAGGLE_KEY`. "
+                "Original error: %s",
                 exc,
             )
             raise RuntimeError("Failed to download dataset from Kaggle.") from exc
