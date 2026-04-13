@@ -35,7 +35,7 @@ reportlab>=4.2.0
 # ------------------------------------------------------------
 # Agentic Workflow
 # ------------------------------------------------------------
-langgraph>=0.1.0
+langgraph>=1.0.8,<1.1.0
 
 
 # ------------------------------------------------------------
@@ -84,12 +84,12 @@ tiktoken>=0.5.0
 # LangChain provides the RAG pipeline glue: document loaders,
 # text splitters, retriever interfaces, and chain abstractions
 # that connect FAISS retrieval to the LLM response step.
-langchain>=0.1.0
-langchain-core>=0.1.0
-langchain-community>=0.0.20
+langchain>=0.3.0,<0.4.0
+langchain-core>=0.3.0,<0.4.0
+langchain-community>=0.3.0,<0.4.0
 
 # LangChain integration for HuggingFace models/embeddings
-langchain-huggingface>=0.0.1
+langchain-huggingface>=0.3.0,<0.4.0
 
 
 # ------------------------------------------------------------
@@ -99,11 +99,11 @@ langchain-huggingface>=0.0.1
 # any HuggingFace-hosted model. Install both to keep the
 # project provider-agnostic and configurable via .env.
 openai>=1.10.0
-langchain-openai>=0.1.0
+langchain-openai>=0.3.0,<0.4.0
 
 # Groq powers the advisory and grounded answer generation
 # paths for low-latency inference in the app.
-langchain-groq>=0.2.0
+langchain-groq>=0.3.0,<0.4.0
 
 
 # ------------------------------------------------------------
