@@ -57,7 +57,7 @@ To rebuild the price prediction model from the Kaggle dataset:
 ```bash
 python3 train_model.py
 ```
-This updates `models/house_model.pkl` and `assets/model_metadata.json`.
+This updates `models/house_model.pkl` and writes structured training metadata to `assets/model_metadata.json`.
 
 ### Knowledge Base & RAG
 The RAG system indexes documents in `data/knowledge_base/`. 
@@ -79,12 +79,15 @@ The system is designed to be resilient to missing dependencies:
 
 ## 📂 Project Structure
 - `app.py`: Streamlit entry point.
-- `validator.py`: Input guardrails for property features.
+- `train_model.py`: Data preprocessing, training, and evaluation pipeline.
 - `agent.py`: LangGraph advisory workflow.
 - `rag_engine.py`: Vector search and comp parsing logic.
-- `train_model.py`: ML pipeline (Kaggle -> Clean -> Train -> Save).
+- `validator.py`: Input guardrails for property features.
 - `pdf_report.py`: ReportLab PDF engine.
+- `llm_config.py`: Shared LLM provider configuration.
+- `assets/`: Model metadata and static assets.
 - `data/knowledge_base/`: Source text for RAG.
+- `models/`: Serialized models and FAISS index.
 
 ## 👥 Team
 - **Nss Gourav**
