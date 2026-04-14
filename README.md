@@ -35,7 +35,7 @@ graph TD
 ### 1. The "Happy Path" (Standard Valuation)
 - **Inputs**: 2500 sq ft, 3 Bedrooms, 2 Bathrooms, 2 Stories, Main Road: Yes, Parking: 2.
 - **Expectation**: A realistic price estimate (~₹60L - ₹80L) and a professional AI breakdown of the property's investment potential.
-- **Action**: Click "Download Property Brief" to see the full PDF report.
+- **Action**: Click "Download Investment Report (PDF)" to see the full brief.
 
 ### 2. The "Guardrail Path" (Outlier Detection)
 - **Inputs**: 5000 sq ft, 1 Bedroom.
@@ -67,6 +67,11 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 pip install -r requirements-dev.txt 
+```
+
+### 3. Run the App
+```bash
+streamlit run app.py
 ```
 
 ### Environment Configuration
