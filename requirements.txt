@@ -35,7 +35,7 @@ reportlab>=4.2.0
 # ------------------------------------------------------------
 # Agentic Workflow
 # ------------------------------------------------------------
-langgraph>=0.1.0
+langgraph==1.0.1
 
 
 # ------------------------------------------------------------
@@ -84,12 +84,12 @@ tiktoken>=0.5.0
 # LangChain provides the RAG pipeline glue: document loaders,
 # text splitters, retriever interfaces, and chain abstractions
 # that connect FAISS retrieval to the LLM response step.
-langchain>=0.1.0
-langchain-core>=0.1.0
-langchain-community>=0.0.20
+langchain==0.3.28
+langchain-core==0.3.84
+langchain-community==0.3.31
 
 # LangChain integration for HuggingFace models/embeddings
-langchain-huggingface>=0.0.1
+langchain-huggingface==0.3.1
 
 
 # ------------------------------------------------------------
@@ -98,12 +98,12 @@ langchain-huggingface>=0.0.1
 # The RAG pipeline can be backed by OpenAI's GPT models or
 # any HuggingFace-hosted model. Install both to keep the
 # project provider-agnostic and configurable via .env.
-openai>=1.10.0
-langchain-openai>=0.1.0
+openai>=1.10.0,<2.0.0
+langchain-openai==0.3.35
 
 # Groq powers the advisory and grounded answer generation
 # paths for low-latency inference in the app.
-langchain-groq>=0.2.0
+langchain-groq==0.3.8
 
 
 # ------------------------------------------------------------
@@ -127,12 +127,12 @@ python-dotenv>=1.0.0
 
 # tqdm - progress bars for indexing large document corpora
 #        into the FAISS vector store.
-tqdm>=4.65.0
+tqdm>=4.65.0,<5.0.0
 
 # pydantic - data validation for RAG config schemas and
 #            structured outputs from LLM chains.
-pydantic>=2.0.0
+pydantic>=2.0.0,<3.0.0
 
 # requests - HTTP client for fetching remote documents or
 #            calling external property data APIs.
-requests>=2.28.0
+requests>=2.28.0,<3.0.0
