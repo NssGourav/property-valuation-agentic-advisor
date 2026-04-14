@@ -15,5 +15,64 @@
         "hotwaterheating": 0.0198037701941527,
         "airconditioning": 0.06746781686147177,
         "parking": 0.0640439150513571
+    },
+    "benchmark_summary": {
+        "selected_model": "RandomForestRegressor",
+        "selection_reason": "Random Forest remains the production model because it captures non-linear feature interactions and exposes feature importance for the app insights tab.",
+        "candidates": {
+            "random_forest": {
+                "label": "Random Forest",
+                "metrics": {
+                    "r2": 0.5816628763541574,
+                    "mae": 1080958.0282874617,
+                    "rmse": 1454136.9874011143
+                }
+            },
+            "linear_regression": {
+                "label": "Linear Regression",
+                "metrics": {
+                    "r2": 0.6267717420522674,
+                    "mae": 999835.9836711531,
+                    "rmse": 1373502.2561769912
+                }
+            }
+        }
+    },
+    "training": {
+        "timestamp_utc": "2026-04-14T08:22:59.600401+00:00",
+        "dataset_rows": {
+            "raw": 545,
+            "processed": 545
+        },
+        "split": {
+            "test_size": 0.2,
+            "random_state": 42
+        }
+    },
+    "schema": {
+        "features": [
+            "area",
+            "bedrooms",
+            "bathrooms",
+            "stories",
+            "mainroad",
+            "guestroom",
+            "basement",
+            "hotwaterheating",
+            "airconditioning",
+            "parking"
+        ],
+        "target": "price",
+        "binary_columns": [
+            "mainroad",
+            "guestroom",
+            "basement",
+            "hotwaterheating",
+            "airconditioning"
+        ]
+    },
+    "artifacts": {
+        "predicted_vs_actual": "assets/predicted_vs_actual.png",
+        "feature_importance": "assets/feature_importance.png"
     }
 }
