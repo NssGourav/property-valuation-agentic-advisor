@@ -1,93 +1,104 @@
 # Intelligent Property Valuation Agentic Advisor 🏠
 
-A hybrid AI/ML project for real-estate valuation that combines a Random Forest price predictor with retrieval-augmented market context (RAG) and Groq-powered investment guidance. This project turns raw housing data into actionable investment summaries.
+A high-performance hybrid AI/ML platform for real estate valuation. It pairs a deterministic Random Forest regressor with a stochastic Retrieval-Augmented Generation (RAG) engine to provide not just a price, but a grounded investment narrative.
 
 ## 🔗 Live Demo
-**Access the live application here:** [Live Demo](https://property-valuation-agentic-advisor-xvfy6pzq5caq72fmxlzrak.streamlit.app/)
+**Access the application on Streamlit Cloud:** [Live Demo](https://property-valuation-agentic-advisor-xvfy6pzq5caq72fmxlzrak.streamlit.app/)
 
-## 🎯 Project Overview
-The core objective is to estimate property value from historical housing data and then explain that estimate with grounded, retrieval-backed investment advice.
+## 📐 System Architecture
+The system follows an **Agentic Workflow** where ML predictions are contextually enriched by a knowledge base before being summarized by an LLM.
 
-### Key Features
-- **Intelligent Price Prediction**: Interactive form with real-time validation for physical property attributes.
-- **Agentic Investment Advisor**: A LangGraph-powered advisor that reasons across ML predictions, market context, and comparable sales.
-- **RAG Knowledge Layer**: Uses FAISS and local knowledge-base documents to ground AI responses in factual, retrieved information.
-- **Comparable Sales Retrival**: Automatically finds the most similar recent property transactions from the knowledge base.
-- **PDF Investment Brief**: Generates a professional, exportable report containing valuation, advisory, and model metrics.
-- **Model Insights**: Detailed performance metrics (R², MAE, RMSE) and feature importance analysis.
+```mermaid
+graph TD
+    User([User Input]) --> Val{Input Validator}
+    Val -- Invalid --> UI[Streamlit Errors/Warnings]
+    Val -- Valid --> ML[ML Price Predictor<br/>Random Forest]
+    Val -- Valid --> RAG[RAG Engine<br/>FAISS + S-Transformers]
+    
+    ML --> Agent[LangGraph Advisor]
+    RAG --> Agent
+    
+    Agent --> Adv[AI Investment Advice]
+    Adv --> UI
+    Adv --> PDF[PDF Brief Generator]
+    UI --> PDF
+```
 
-## 🛠️ Technology Stack
-- **Core**: Python 3.13+, Streamlit
-- **ML/Data**: `scikit-learn`, `pandas`, `numpy`, `joblib`
-- **Agentic AI**: `LangGraph`, `LangChain`, `langchain-groq`
-- **Vector DB**: `FAISS` (Facebook AI Similarity Search)
-- **Embeddings**: `sentence-transformers` (all-MiniLM-L6-v2)
-- **Reporting**: `ReportLab` (PDF generation)
+### Core Components
+- **Deterministic Brain (ML)**: A Random Forest model trained on historical housing data to provide baseline valuations.
+- **Contextual Memory (RAG)**: A FAISS vector store that retrieves real-time market trends and comparable sales.
+- **Agentic Orchestrator**: A LangGraph workflow that reasons over the ML prediction and retrieved context using Groq's Llama-3.1.
+- **Presentation Layer**: A professional Streamlit UI with PDF export capabilities for institutional-grade briefs.
 
-## 🚀 Quick Start (Local Setup)
+## 🎯 Demo Guidance
 
-### 1. Clone & Install
+### 1. The "Happy Path" (Standard Valuation)
+- **Inputs**: 2500 sq ft, 3 Bedrooms, 2 Bathrooms, 2 Stories, Main Road: Yes, Parking: 2.
+- **Expectation**: A realistic price estimate (~₹60L - ₹80L) and a professional AI breakdown of the property's investment potential.
+- **Action**: Click "Download Investment Report (PDF)" to see the full brief.
+
+### 2. The "Guardrail Path" (Outlier Detection)
+- **Inputs**: 5000 sq ft, 1 Bedroom.
+- **Expectation**: The `validator.py` will trigger a **Soft Warning** (Unusual area for bedrooms).
+- **Benefit**: Demonstrates the system's ability to prevent "Garbage In, Garbage Out" scenarios.
+
+### 3. The "Fallback Path" (No API Key)
+- **Action**: Run the app without `GROQ_API_KEY`.
+- **Expectation**: The app provides a "Fallback Summary" using raw RAG context, showing resilience to service outages.
+
+## 📊 Model & Metrics
+The model is trained on the [Kaggle Housing dataset](https://www.kaggle.com/datasets/yasserh/housing-prices-dataset) (546 records).
+
+| Metric | Random Forest | Linear Regression |
+| :--- | :--- | :--- |
+| **R² Score** | 0.582 | 0.627 |
+| **MAE** | ₹1,080,958 | ₹999,836 |
+
+> [!NOTE]
+> While Linear Regression has a slightly higher R², Random Forest is chosen for the production "Advisor" path for its ability to capture non-linear feature interactions and provide **Feature Importance** insights.
+
+## 🛠️ Installation & Setup
+
+### Local Setup
 ```bash
 git clone https://github.com/NssGourav/property-valuation-agentic-advisor.git
 cd property-valuation-agentic-advisor
 python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
-pip install -r requirements-dev.txt # For testing
+pip install -r requirements-dev.txt 
 ```
-
-### 2. Configure Environment
-Create a `.env` file or export the following variables:
-| Variable | Description | Default |
-| :--- | :--- | :--- |
-| `GROQ_API_KEY` | API key from [Groq Console](https://console.groq.com/) | *Required for Advisory* |
-| `GROQ_MODEL` | Model ID for advisory (e.g., `llama-3.1-8b-instant`) | `llama-3.1-8b-instant` |
-| `KAGGLE_USERNAME` | Kaggle username for dataset download | *Optional* |
-| `KAGGLE_KEY` | Kaggle API key | *Optional* |
 
 ### 3. Run the App
 ```bash
 streamlit run app.py
 ```
 
-## 🔄 Core Workflows
+### Environment Configuration
+| Variable | Description |
+| :--- | :--- |
+| `GROQ_API_KEY` | Powers the Llama-3.1 advisory engine. |
+| `KAGGLE_USERNAME` | Required if retraining the model from source. |
 
-### Model Retraining
-To rebuild the price prediction model from the Kaggle dataset:
-```bash
-python3 train_model.py
-```
-This updates `models/house_model.pkl` and writes structured training metadata to `assets/model_metadata.json`.
-
-### Knowledge Base & RAG
-The RAG system indexes documents in `data/knowledge_base/`. 
-- **Comparable Sales**: Stored in `comparable_sales.txt`. The system parses this to find similar properties.
-- **Market Trends**: Stored in `market_trends.txt`. Used to ground the AI advisory.
-The FAISS index is built automatically on the first run of the app or agent.
-
-### Testing
-Run the unit test suite to verify core logic:
+### Running Tests
 ```bash
 python3 -m pytest tests/
 ```
 
-## 🛡️ Robustness & Fallbacks
-The system is designed to be resilient to missing dependencies:
-- **No Groq API Key**: The app still runs perfectly for valuation. The advisor provides a "Fallback Mode" summary using raw retrieved context without LLM generation.
-- **No Kaggle Credentials**: If `Housing.csv` is missing and download fails, clear instructions are provided for manual download.
-- **Missing FAISS Index**: The system attempts to rebuild the index if source documents are present.
-
 ## 📂 Project Structure
-- `app.py`: Streamlit entry point.
-- `train_model.py`: Data preprocessing, training, and evaluation pipeline.
-- `agent.py`: LangGraph advisory workflow.
-- `rag_engine.py`: Vector search and comp parsing logic.
-- `validator.py`: Input guardrails for property features.
-- `pdf_report.py`: ReportLab PDF engine.
-- `llm_config.py`: Shared LLM provider configuration.
-- `assets/`: Model metadata and static assets.
-- `data/knowledge_base/`: Source text for RAG.
-- `models/`: Serialized models and FAISS index.
+- `app.py`: Streamlit frontend.
+- `agent.py`: LangGraph advisory logic.
+- `rag_engine.py`: FAISS/Vector search implementation.
+- `train_model.py`: ML pipeline (Kaggle -> metrics).
+- `validator.py`: Input guardrails.
+- `pdf_report.py`: Automated PDF reporting via ReportLab.
+
+## 🛡️ Limitations & Roadmap
+- **Current**: Static knowledge base in `comparable_sales.txt`.
+- **Roadmap**: 
+  - [ ] **Live Market Data**: Integration with real estate APIs for real-time comps.
+  - [ ] **Interactive Maps**: Geographic visualization of target property vs. retrieved comps.
+  - [ ] **Deep Learning**: Experimenting with XGBoost or Neural Networks for improved R².
 
 ## 👥 Team
 - **Nss Gourav**
