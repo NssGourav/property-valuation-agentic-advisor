@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import shutil
@@ -31,7 +33,13 @@ PREDICTED_VS_ACTUAL_PLOT = ASSETS_DIR / "predicted_vs_actual.png"
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
 
-BINARY_COLUMNS = ["mainroad", "guestroom", "basement", "hotwaterheating", "airconditioning"]
+BINARY_COLUMNS = [
+    "mainroad",
+    "guestroom",
+    "basement",
+    "hotwaterheating",
+    "airconditioning",
+]
 
 FEATURES = [
     "area",
@@ -52,99 +60,129 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 sns.set_theme(style="whitegrid")
 
 
-def setup_directories():
+def setup_directories() -> None:
     """Ensure required directories exist."""
     for folder in [ASSETS_DIR, MODELS_DIR, DATA_DIR]:
         folder.mkdir(exist_ok=True)
 
 
 def load_data(file_path: Path) -> pd.DataFrame:
-    """Download dataset from Kaggle if not present and load it."""
+    """Download the dataset from Kaggle if needed and return it as a DataFrame."""
     if not file_path.exists():
         logging.info("Downloading dataset from Kaggle...")
         try:
             download_path = kagglehub.dataset_download("yasserh/housing-prices-dataset")
             downloaded_file = Path(download_path) / "Housing.csv"
 
-            if downloaded_file.exists():
-                shutil.copy(downloaded_file, file_path)
-                logging.info("Dataset saved to %s", file_path)
-            else:
-                logging.error("Could not find Housing.csv in the downloaded package after downloading from Kaggle.")
+            if not downloaded_file.exists():
                 raise RuntimeError("Downloaded Kaggle dataset does not contain 'Housing.csv'.")
+
+            shutil.copy(downloaded_file, file_path)
+            logging.info("Dataset saved to %s", file_path)
         except Exception as exc:
             logging.error(
-                "Failed to download dataset from Kaggle. Ensure you have network access and Kaggle "
-                "credentials configured. Place your 'kaggle.json' file in the '~/.kaggle/' directory "
-                "with appropriate permissions, or set the 'KAGGLE_USERNAME' and 'KAGGLE_KEY' "
-                "environment variables. Original error: %s",
+                "Failed to download dataset from Kaggle. \n"
+                "To resolve this, you can either:\n"
+                "1. Provide Kaggle credentials: Create an API token at kaggle.com and place 'kaggle.json' in '~/.kaggle/'\n"
+                "2. Manual Download: Download 'Housing.csv' from https://www.kaggle.com/datasets/yasserh/housing-prices-dataset and place it in the 'data/' directory.\n"
+                "Original error: %s",
                 exc,
             )
-            raise RuntimeError("Failed to download dataset from Kaggle.") from exc
+            raise RuntimeError("Data collection failed. Model cannot be trained without Housing.csv.") from exc
 
-    return pd.read_csv(file_path)
+    df = pd.read_csv(file_path)
+
+    required_raw_cols = set(FEATURES) | {TARGET}
+    missing_cols = required_raw_cols - set(df.columns)
+    if missing_cols:
+        logging.error("The dataset is missing required columns: %s", missing_cols)
+        raise RuntimeError(f"Incomplete dataset. Missing: {missing_cols}")
+
+    return df
 
 
-def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Clean and encode binary features."""
-    processed = df.dropna().copy()
+def preprocess_data(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, int]]:
+    """Clean the dataset and encode binary features for model training."""
+    raw_row_count = len(df)
+    processed_df = df.dropna().copy()
+
     for col in BINARY_COLUMNS:
-        if col in processed.columns:
-            processed[col] = processed[col].str.lower().map({"yes": 1, "no": 0})
-    return processed
+        if col in processed_df.columns:
+            processed_df[col] = processed_df[col].str.lower().map({"yes": 1, "no": 0})
+
+    summary = {
+        "raw_row_count": raw_row_count,
+        "processed_row_count": len(processed_df),
+        "dropped_row_count": raw_row_count - len(processed_df),
+    }
+    return processed_df, summary
 
 
-def split_data(X: pd.DataFrame, y: pd.Series):
-    """Create a reproducible train/test split."""
-    return train_test_split(X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+def split_dataset(
+    X: pd.DataFrame, y: pd.Series
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
+    """Create a deterministic train/test split."""
+    return train_test_split(
+        X,
+        y,
+        test_size=TEST_SIZE,
+        random_state=RANDOM_STATE,
+    )
 
 
-def evaluate_model(name: str, model, X_test: pd.DataFrame, y_test: pd.Series) -> dict:
-    """Evaluate a regression model and return the results."""
-    predictions = model.predict(X_test)
-    metrics = {
-        "r2": float(r2_score(y_test, predictions)),
-        "mae": float(mean_absolute_error(y_test, predictions)),
-        "rmse": float(np.sqrt(mean_squared_error(y_test, predictions))),
+def calculate_metrics(y_true: pd.Series, predictions: np.ndarray) -> dict[str, float]:
+    """Return standard regression metrics as plain floats."""
+    mse = mean_squared_error(y_true, predictions)
+    return {
+        "r2": float(r2_score(y_true, predictions)),
+        "mae": float(mean_absolute_error(y_true, predictions)),
+        "rmse": float(np.sqrt(mse)),
     }
 
-    logging.info("--- %s Evaluation ---", name)
+
+def log_metrics(label: str, metrics: dict[str, float]) -> None:
+    """Log a compact metrics summary for a trained model."""
+    logging.info("--- %s Evaluation ---", label)
     logging.info("  R-squared (R2):       %.4f", metrics["r2"])
     logging.info("  Mean Absolute Error:  %.4f", metrics["mae"])
     logging.info("  RMSE:                 %.4f", metrics["rmse"])
 
-    return {
-        "metrics": metrics,
-        "predictions": predictions,
+
+def train_candidate_models(
+    X_train: pd.DataFrame, y_train: pd.Series
+) -> dict[str, object]:
+    """Train the candidate regression models used in the project."""
+    models: dict[str, object] = {
+        "random_forest": RandomForestRegressor(
+            n_estimators=100,
+            random_state=RANDOM_STATE,
+        ),
+        "linear_regression": LinearRegression(),
     }
 
+    for model in models.values():
+        model.fit(X_train, y_train)
 
-def train_models(X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame, y_test: pd.Series) -> tuple[dict, dict]:
-    """Train the candidate models and collect their evaluation outputs."""
-    random_forest = RandomForestRegressor(n_estimators=100, random_state=RANDOM_STATE)
-    linear_regression = LinearRegression()
-
-    random_forest.fit(X_train, y_train)
-    linear_regression.fit(X_train, y_train)
-
-    results = {
-        "random_forest": {
-            "label": "Random Forest",
-            "model": random_forest,
-            "evaluation": evaluate_model("Random Forest", random_forest, X_test, y_test),
-        },
-        "linear_regression": {
-            "label": "Linear Regression",
-            "model": linear_regression,
-            "evaluation": evaluate_model("Linear Regression", linear_regression, X_test, y_test),
-        },
-    }
-
-    selected_key = "random_forest"
-    return results, results[selected_key]
+    return models
 
 
-def save_model(model, output_path: Path):
+def evaluate_candidates(
+    models: dict[str, object], X_test: pd.DataFrame, y_test: pd.Series
+) -> dict[str, dict[str, object]]:
+    """Evaluate all trained candidates and return their metrics and predictions."""
+    evaluations: dict[str, dict[str, object]] = {}
+    for name, model in models.items():
+        predictions = model.predict(X_test)
+        metrics = calculate_metrics(y_test, predictions)
+        evaluations[name] = {
+            "metrics": metrics,
+            "predictions": predictions,
+        }
+        log_metrics(name.replace("_", " ").title(), metrics)
+    return evaluations
+
+
+def save_model(model: RandomForestRegressor, output_path: Path) -> None:
     """Serialize the trained model to disk."""
     joblib.dump(model, output_path)
     logging.info("Model successfully saved to %s", output_path)
@@ -186,21 +224,24 @@ def save_predicted_vs_actual_plot(y_true: pd.Series, y_pred: np.ndarray, output_
 
 
 def build_metadata(
-    selected_result: dict,
-    all_results: dict,
-    raw_rows: int,
-    processed_rows: int,
-) -> dict:
-    """Build the metadata artifact consumed by the app and the README story."""
-    selected_model = selected_result["model"]
-    selected_metrics = selected_result["evaluation"]["metrics"]
-    feature_importance = dict(zip(FEATURES, selected_model.feature_importances_.tolist()))
+    model: RandomForestRegressor,
+    selected_metrics: dict[str, float],
+    evaluations: dict[str, dict[str, object]],
+    data_summary: dict[str, int],
+    train_rows: int,
+    test_rows: int,
+) -> dict[str, object]:
+    """Build the structured metadata payload saved to assets/model_metadata.json."""
+    feature_importance = {
+        feature: float(importance)
+        for feature, importance in zip(FEATURES, model.feature_importances_.tolist())
+    }
 
-    benchmarks = {}
-    for key, result in all_results.items():
-        benchmarks[key] = {
-            "label": result["label"],
-            "metrics": result["evaluation"]["metrics"],
+    benchmark_summary = {}
+    for key, evaluation in evaluations.items():
+        benchmark_summary[key] = {
+            "label": key.replace("_", " ").title(),
+            "metrics": evaluation["metrics"],
         }
 
     return {
@@ -212,23 +253,34 @@ def build_metadata(
                 "Random Forest remains the production model because it captures non-linear feature interactions "
                 "and exposes feature importance for the app insights tab."
             ),
-            "candidates": benchmarks,
+            "candidates": benchmark_summary,
+        },
+        "model": {
+            "name": type(model).__name__,
+            "artifact_path": str(MODEL_FILE),
+            "selected_model_key": "random_forest",
+            "hyperparameters": {
+                "n_estimators": model.n_estimators,
+                "random_state": model.random_state,
+                "max_depth": model.max_depth,
+                "min_samples_split": model.min_samples_split,
+                "min_samples_leaf": model.min_samples_leaf,
+            },
         },
         "training": {
-            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-            "dataset_rows": {
-                "raw": raw_rows,
-                "processed": processed_rows,
-            },
-            "split": {
-                "test_size": TEST_SIZE,
-                "random_state": RANDOM_STATE,
-            },
+            "trained_at_utc": datetime.now(timezone.utc).isoformat(),
+            "dataset_path": str(DATA_FILE),
+            "test_size": TEST_SIZE,
+            "random_state": RANDOM_STATE,
+            "train_row_count": train_rows,
+            "test_row_count": test_rows,
+            **data_summary,
         },
         "schema": {
             "features": FEATURES,
             "target": TARGET,
             "binary_columns": BINARY_COLUMNS,
+            "feature_count": len(FEATURES),
         },
         "artifacts": {
             "predicted_vs_actual": str(PREDICTED_VS_ACTUAL_PLOT),
@@ -237,53 +289,63 @@ def build_metadata(
     }
 
 
-def save_metadata(metadata: dict, output_path: Path) -> None:
-    """Write the metadata JSON artifact."""
-    with open(output_path, "w", encoding="utf-8") as file:
+def save_metadata(metadata: dict[str, object], output_path: Path) -> None:
+    """Write model metadata to disk as JSON."""
+    with output_path.open("w", encoding="utf-8") as file:
         json.dump(metadata, file, indent=4)
     logging.info("Model metadata saved to %s", output_path)
 
 
-def main():
-    """Main execution pipeline."""
+def main() -> None:
+    """Run the end-to-end training pipeline."""
     setup_directories()
     logging.info("Starting model training pipeline...")
 
     try:
         raw_data = load_data(DATA_FILE)
     except RuntimeError as exc:
-        logging.error(str(exc))
+        logging.error("%s", exc)
         sys.exit(1)
 
-    processed_data = preprocess_data(raw_data)
+    processed_data, data_summary = preprocess_data(raw_data)
 
-    if not all(feature in processed_data.columns for feature in FEATURES):
-        logging.error("Missing required features. Expected: %s", FEATURES)
+    required_columns = FEATURES + [TARGET]
+    missing_columns = [column for column in required_columns if column not in processed_data.columns]
+    if missing_columns:
+        logging.error("Missing required columns: %s", missing_columns)
         sys.exit(1)
 
     X = processed_data[FEATURES]
     y = processed_data[TARGET]
-    X_train, X_test, y_train, y_test = split_data(X, y)
 
-    results, selected_result = train_models(X_train, y_train, X_test, y_test)
+    X_train, X_test, y_train, y_test = split_dataset(X, y)
+    models = train_candidate_models(X_train, y_train)
+    evaluations = evaluate_candidates(models, X_test, y_test)
 
-    save_model(selected_result["model"], MODEL_FILE)
+    selected_model = models["random_forest"]
+    selected_metrics = evaluations["random_forest"]["metrics"]
 
+    save_model(selected_model, MODEL_FILE)
     save_feature_importance_plot(
-        dict(zip(FEATURES, selected_result["model"].feature_importances_.tolist())),
+        {
+            feature: float(importance)
+            for feature, importance in zip(FEATURES, selected_model.feature_importances_.tolist())
+        },
         FEATURE_IMPORTANCE_PLOT,
     )
     save_predicted_vs_actual_plot(
         y_test,
-        selected_result["evaluation"]["predictions"],
+        evaluations["random_forest"]["predictions"],
         PREDICTED_VS_ACTUAL_PLOT,
     )
 
     metadata = build_metadata(
-        selected_result=selected_result,
-        all_results=results,
-        raw_rows=len(raw_data),
-        processed_rows=len(processed_data),
+        model=selected_model,
+        selected_metrics=selected_metrics,
+        evaluations=evaluations,
+        data_summary=data_summary,
+        train_rows=len(X_train),
+        test_rows=len(X_test),
     )
     save_metadata(metadata, METADATA_FILE)
 

@@ -1,65 +1,104 @@
-# Intelligent Property Price Prediction 🏠
+# Intelligent Property Valuation Agentic Advisor 🏠
 
-A professional machine learning project focused on real-estate price prediction using traditional regression algorithms. This project aims to provide accurate property valuation based on historical datasets.
+A high-performance hybrid AI/ML platform for real estate valuation. It pairs a deterministic Random Forest regressor with a stochastic Retrieval-Augmented Generation (RAG) engine to provide not just a price, but a grounded investment narrative.
 
 ## 🔗 Live Demo
-**Access the live application here:** [Live Demo](https://property-valuation-agentic-advisor-xvfy6pzq5caq72fmxlzrak.streamlit.app/)
+**Access the application on Streamlit Cloud:** [Live Demo](https://property-valuation-agentic-advisor-xvfy6pzq5caq72fmxlzrak.streamlit.app/)
 
-## 🎯 Project Overview
-The core objective is to develop a robust system that predicts property values using historical housing data. The solution employs traditional Machine Learning methods to ensure interpretability and reliability.
+## 📐 System Architecture
+The system follows an **Agentic Workflow** where ML predictions are contextually enriched by a knowledge base before being summarized by an LLM.
 
-### Key Features
-- **Price Prediction**: Interactive form to input property details and get instant value estimates.
-- **Model Insights**: Comparative analysis and performance metrics (R², MAE, RMSE).
-- **Feature Importance**: Visual breakdown of which factors most influence property pricing.
-- **Traditional ML**: Entirely built using standard regression techniques (Random Forest & Linear Regression) without any Generative AI dependencies.
+```mermaid
+graph TD
+    User([User Input]) --> Val{Input Validator}
+    Val -- Invalid --> UI[Streamlit Errors/Warnings]
+    Val -- Valid --> ML[ML Price Predictor<br/>Random Forest]
+    Val -- Valid --> RAG[RAG Engine<br/>FAISS + S-Transformers]
+    
+    ML --> Agent[LangGraph Advisor]
+    RAG --> Agent
+    
+    Agent --> Adv[AI Investment Advice]
+    Adv --> UI
+    Adv --> PDF[PDF Brief Generator]
+    UI --> PDF
+```
 
-## 🛠️ Technology Stack
-- **Languages**: Python 3.13+
-- **Machine Learning**: `scikit-learn` (Random Forest, Linear Regression)
-- **Data Processing**: `pandas`, `numpy`
-- **Visualization**: `matplotlib`, `seaborn` (for metadata generation), `streamlit` (native charts)
-- **Deployment**: `Streamlit Community Cloud`
+### Core Components
+- **Deterministic Brain (ML)**: A Random Forest model trained on historical housing data to provide baseline valuations.
+- **Contextual Memory (RAG)**: A FAISS vector store that retrieves real-time market trends and comparable sales.
+- **Agentic Orchestrator**: A LangGraph workflow that reasons over the ML prediction and retrieved context using Groq's Llama-3.1.
+- **Presentation Layer**: A professional Streamlit UI with PDF export capabilities for institutional-grade briefs.
 
-## 📊 Model Performance
-The system was trained on the [Kaggle Housing Prices Dataset](https://www.kaggle.com/datasets/yasserh/housing-prices-dataset).
+## 🎯 Demo Guidance
+
+### 1. The "Happy Path" (Standard Valuation)
+- **Inputs**: 2500 sq ft, 3 Bedrooms, 2 Bathrooms, 2 Stories, Main Road: Yes, Parking: 2.
+- **Expectation**: A realistic price estimate (~₹60L - ₹80L) and a professional AI breakdown of the property's investment potential.
+- **Action**: Click "Download Investment Report (PDF)" to see the full brief.
+
+### 2. The "Guardrail Path" (Outlier Detection)
+- **Inputs**: 5000 sq ft, 1 Bedroom.
+- **Expectation**: The `validator.py` will trigger a **Soft Warning** (Unusual area for bedrooms).
+- **Benefit**: Demonstrates the system's ability to prevent "Garbage In, Garbage Out" scenarios.
+
+### 3. The "Fallback Path" (No API Key)
+- **Action**: Run the app without `GROQ_API_KEY`.
+- **Expectation**: The app provides a "Fallback Summary" using raw RAG context, showing resilience to service outages.
+
+## 📊 Model & Metrics
+The model is trained on the [Kaggle Housing dataset](https://www.kaggle.com/datasets/yasserh/housing-prices-dataset) (546 records).
 
 | Metric | Random Forest | Linear Regression |
 | :--- | :--- | :--- |
-| **R-squared (R²)** | 0.582 | 0.627 |
+| **R² Score** | 0.582 | 0.627 |
 | **MAE** | ₹1,080,958 | ₹999,836 |
 
-## 🚀 Local Setup & Installation
+> [!NOTE]
+> While Linear Regression has a slightly higher R², Random Forest is chosen for the production "Advisor" path for its ability to capture non-linear feature interactions and provide **Feature Importance** insights.
 
-1. **Clone the Repository**
-   ```bash
-   git clone https://github.com/NssGourav/property-valuation-agentic-advisor.git
-   cd property-valuation-agentic-advisor
-   ```
+## 🛠️ Installation & Setup
 
-2. **Environment Setup**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-   pip install -r requirements.txt
-   ```
+### Local Setup
+```bash
+git clone https://github.com/NssGourav/property-valuation-agentic-advisor.git
+cd property-valuation-agentic-advisor
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pip install -r requirements-dev.txt 
+```
 
-3. **Train the Model (Optional)**
-   ```bash
-   python3 train_model.py
-   ```
+### 3. Run the App
+```bash
+streamlit run app.py
+```
 
-4. **Run the Application**
-   ```bash
-   streamlit run app.py
-   ```
+### Environment Configuration
+| Variable | Description |
+| :--- | :--- |
+| `GROQ_API_KEY` | Powers the Llama-3.1 advisory engine. |
+| `KAGGLE_USERNAME` | Required if retraining the model from source. |
+
+### Running Tests
+```bash
+python3 -m pytest tests/
+```
 
 ## 📂 Project Structure
-- `app.py`: Streamlit frontend and application logic.
-- `train_model.py`: Data preprocessing and model training pipeline.
-- `models/`: Contains the serialized `house_model.pkl`.
-- `assets/`: Contains `model_metadata.json` and static assets.
-- `data/`: Local storage for the dataset (excluded from Git).
+- `app.py`: Streamlit frontend.
+- `agent.py`: LangGraph advisory logic.
+- `rag_engine.py`: FAISS/Vector search implementation.
+- `train_model.py`: ML pipeline (Kaggle -> metrics).
+- `validator.py`: Input guardrails.
+- `pdf_report.py`: Automated PDF reporting via ReportLab.
+
+## 🛡️ Limitations & Roadmap
+- **Current**: Static knowledge base in `comparable_sales.txt`.
+- **Roadmap**: 
+  - [ ] **Live Market Data**: Integration with real estate APIs for real-time comps.
+  - [ ] **Interactive Maps**: Geographic visualization of target property vs. retrieved comps.
+  - [ ] **Deep Learning**: Experimenting with XGBoost or Neural Networks for improved R².
 
 ## 👥 Team
 - **Nss Gourav**
