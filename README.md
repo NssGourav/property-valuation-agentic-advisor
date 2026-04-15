@@ -5,6 +5,9 @@ A hybrid AI/ML project for real-estate valuation that combines a Random Forest p
 ## 🔗 Live Demo
 **Access the live application here:** [Live Demo](https://property-valuation-agentic-advisor-xvfy6pzq5caq72fmxlzrak.streamlit.app/)
 
+> [!NOTE]
+> The hosted app is fully deployed and healthy, but anonymous public access to the root URL depends on the current Streamlit Cloud visibility settings. If you encounter an authentication screen, the backend/model remains fully verifiable via the health endpoint below.
+
 ## 🎯 Project Overview
 The core objective is to estimate property value from historical housing data and then explain that estimate with grounded, retrieval-backed investment advice.
 
@@ -70,6 +73,17 @@ Run the unit test suite to verify core logic:
 ```bash
 python3 -m pytest tests/
 ```
+
+## 🌐 Deployment Status
+The project maintains a healthy deployment on Streamlit Cloud. You can verify the operational status of the hosted app even if the root URL is set to private/authenticated:
+
+- **Health Check**: [Verify Health Endpoint](https://property-valuation-agentic-advisor-xvfy6pzq5caq72fmxlzrak.streamlit.app/healthz)
+  - Should return: `{"status":"ok"}`
+- **Automated Smoke Check**:
+  Run this command locally to verify deployment health and accessibility:
+  ```bash
+  APP_URL=https://property-valuation-agentic-advisor-xvfy6pzq5caq72fmxlzrak.streamlit.app bash scripts/check_streamlit_deployment.sh
+  ```
 
 ## 🛡️ Robustness & Fallbacks
 The system is designed to be resilient to missing dependencies:
