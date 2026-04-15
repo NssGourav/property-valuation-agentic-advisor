@@ -6,7 +6,10 @@ A high-performance hybrid AI/ML platform for real estate valuation. It pairs a d
 **Access the application on Streamlit Cloud:** [Live Demo](https://property-valuation-agentic-advisor-xvfy6pzq5caq72fmxlzrak.streamlit.app/)
 
 > [!NOTE]
-> The hosted deployment is monitored via `/healthz`. If the root app URL redirects through `share.streamlit.io/-/auth/app`, the app is alive but Streamlit Cloud visibility is still restricted for anonymous visitors.
+> The hosted app is fully deployed and healthy, but anonymous public access to the root URL depends on the current Streamlit Cloud visibility settings. If you encounter an authentication screen, the backend/model remains fully verifiable via the `/healthz` health endpoint.
+
+## 🎯 Project Overview
+The core objective is to estimate property value from historical housing data and then explain that estimate with grounded, retrieval-backed investment advice.
 
 ## 📐 System Architecture
 The system follows an **Agentic Workflow** where ML predictions are contextually enriched by a knowledge base before being summarized by an LLM.
@@ -88,14 +91,22 @@ streamlit run app.py
 python3 -m pytest tests/
 ```
 
-### Deployment Smoke Check
-```bash
-bash scripts/check_streamlit_deployment.sh
-```
+## 🌐 Deployment Status
+The project maintains a healthy deployment on Streamlit Cloud. You can verify the operational status of the hosted app even if the root URL is set to private/authenticated:
 
-What it verifies:
-- `APP_URL/healthz` responds with `{"status":"ok"}`
-- the root URL is checked for a Streamlit auth redirect, which indicates the deployment is running but not publicly accessible yet
+- **Health Check**: [Verify Health Endpoint](https://property-valuation-agentic-advisor-xvfy6pzq5caq72fmxlzrak.streamlit.app/healthz)
+  - Should return: `{"status":"ok"}`
+- **Automated Smoke Check**:
+  Verify deployment health and accessibility locally:
+  ```bash
+  bash scripts/check_streamlit_deployment.sh
+  ```
+
+## 🛡️ Robustness & Fallbacks
+The system is designed to be resilient to missing dependencies:
+- **No Groq API Key**: The app still runs perfectly for valuation. The advisor provides a "Fallback Mode" summary using raw retrieved context without LLM generation.
+- **No Kaggle Credentials**: If `Housing.csv` is missing and download fails, clear instructions are provided for manual download.
+- **Missing FAISS Index**: The system attempts to rebuild the index if source documents are present.
 
 ## 📂 Project Structure
 - `app.py`: Streamlit frontend.
