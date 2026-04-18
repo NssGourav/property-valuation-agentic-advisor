@@ -16,8 +16,16 @@ import pandas as pd
 import seaborn as sns
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    mean_absolute_error,
+    mean_squared_error,
+    precision_score,
+    r2_score,
+    recall_score,
+)
+from sklearn.model_selection import RandomizedSearchCV, train_test_split
 
 matplotlib.use("Agg")
 
@@ -29,6 +37,7 @@ MODEL_FILE = MODELS_DIR / "house_model.pkl"
 METADATA_FILE = ASSETS_DIR / "model_metadata.json"
 FEATURE_IMPORTANCE_PLOT = ASSETS_DIR / "feature_importance.png"
 PREDICTED_VS_ACTUAL_PLOT = ASSETS_DIR / "predicted_vs_actual.png"
+CONFUSION_MATRIX_PLOT = ASSETS_DIR / "high_value_confusion_matrix.png"
 
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
@@ -131,12 +140,24 @@ def split_dataset(
 
 
 def calculate_metrics(y_true: pd.Series, predictions: np.ndarray) -> dict[str, float]:
-    """Return standard regression metrics as plain floats."""
+    """Return regression + practical error-rate metrics as plain floats."""
     mse = mean_squared_error(y_true, predictions)
+    y_true_np = np.asarray(y_true, dtype=float)
+    y_pred_np = np.asarray(predictions, dtype=float)
+
+    denom = np.maximum(np.abs(y_true_np), 1.0)
+    abs_pct_err = np.abs(y_true_np - y_pred_np) / denom
+    within_10_pct = float(np.mean(abs_pct_err <= 0.10))
+    within_20_pct = float(np.mean(abs_pct_err <= 0.20))
+    mape = float(np.mean(abs_pct_err))
+
     return {
         "r2": float(r2_score(y_true, predictions)),
         "mae": float(mean_absolute_error(y_true, predictions)),
         "rmse": float(np.sqrt(mse)),
+        "mape": mape,
+        "within_10_pct": within_10_pct,
+        "within_20_pct": within_20_pct,
     }
 
 
@@ -146,22 +167,72 @@ def log_metrics(label: str, metrics: dict[str, float]) -> None:
     logging.info("  R-squared (R2):       %.4f", metrics["r2"])
     logging.info("  Mean Absolute Error:  %.4f", metrics["mae"])
     logging.info("  RMSE:                 %.4f", metrics["rmse"])
+    logging.info("  MAPE:                 %.4f", metrics["mape"])
+    logging.info("  Within 10%%:           %.2f%%", metrics["within_10_pct"] * 100)
+    logging.info("  Within 20%%:           %.2f%%", metrics["within_20_pct"] * 100)
+
+
+def calculate_classification_metrics(
+    y_true: pd.Series, predictions: np.ndarray, *, threshold: float
+) -> dict[str, float]:
+    """
+    Provide accuracy/precision/recall on a derived binary label for reporting.
+
+    This is useful for course evaluation rubrics; the project remains a
+    regression model. Labels are: price >= threshold (high-value).
+    """
+    y_true_np = np.asarray(y_true, dtype=float)
+    y_pred_np = np.asarray(predictions, dtype=float)
+    y_true_bin = (y_true_np >= threshold).astype(int)
+    y_pred_bin = (y_pred_np >= threshold).astype(int)
+
+    return {
+        "accuracy": float(accuracy_score(y_true_bin, y_pred_bin)),
+        "precision": float(precision_score(y_true_bin, y_pred_bin, zero_division=0)),
+        "recall": float(recall_score(y_true_bin, y_pred_bin, zero_division=0)),
+        "f1": float(f1_score(y_true_bin, y_pred_bin, zero_division=0)),
+        "threshold": float(threshold),
+    }
 
 
 def train_candidate_models(
     X_train: pd.DataFrame, y_train: pd.Series
 ) -> dict[str, object]:
-    """Train the candidate regression models used in the project."""
-    models: dict[str, object] = {
-        "random_forest": RandomForestRegressor(
-            n_estimators=100,
-            random_state=RANDOM_STATE,
-        ),
-        "linear_regression": LinearRegression(),
-    }
+    """Train and tune candidate regression models used in the project."""
+    models: dict[str, object] = {}
 
-    for model in models.values():
-        model.fit(X_train, y_train)
+    # Baseline models
+    rf_default = RandomForestRegressor(n_estimators=200, random_state=RANDOM_STATE)
+    lr = LinearRegression()
+    rf_default.fit(X_train, y_train)
+    lr.fit(X_train, y_train)
+    models["random_forest_default"] = rf_default
+    models["linear_regression"] = lr
+
+    # Tuned Random Forest (lightweight randomized search)
+    param_distributions = {
+        "n_estimators": [200, 400, 700, 1000],
+        "max_depth": [None, 6, 10, 14, 18],
+        "min_samples_split": [2, 4, 8, 12],
+        "min_samples_leaf": [1, 2, 4],
+        "max_features": ["sqrt", "log2", None],
+    }
+    search = RandomizedSearchCV(
+        RandomForestRegressor(random_state=RANDOM_STATE),
+        param_distributions=param_distributions,
+        n_iter=20,
+        scoring="neg_mean_absolute_error",
+        cv=5,
+        random_state=RANDOM_STATE,
+        n_jobs=-1,
+    )
+    logging.info("Running RandomizedSearchCV for RandomForestRegressor...")
+    search.fit(X_train, y_train)
+    models["random_forest_tuned"] = search.best_estimator_
+    models["_tuning_info"] = {
+        "best_params": search.best_params_,
+        "best_cv_score_neg_mae": float(search.best_score_),
+    }
 
     return models
 
@@ -171,11 +242,21 @@ def evaluate_candidates(
 ) -> dict[str, dict[str, object]]:
     """Evaluate all trained candidates and return their metrics and predictions."""
     evaluations: dict[str, dict[str, object]] = {}
+    classification_threshold = float(np.median(y_test))
+
     for name, model in models.items():
+        if name.startswith("_"):
+            continue
         predictions = model.predict(X_test)
         metrics = calculate_metrics(y_test, predictions)
+        class_metrics = calculate_classification_metrics(
+            y_test,
+            predictions,
+            threshold=classification_threshold,
+        )
         evaluations[name] = {
             "metrics": metrics,
+            "classification_metrics": class_metrics,
             "predictions": predictions,
         }
         log_metrics(name.replace("_", " ").title(), metrics)
@@ -223,10 +304,52 @@ def save_predicted_vs_actual_plot(y_true: pd.Series, y_pred: np.ndarray, output_
     logging.info("Saved predicted-vs-actual plot to %s", output_path)
 
 
+def save_high_value_confusion_matrix(
+    y_true: pd.Series,
+    y_pred: np.ndarray,
+    *,
+    threshold: float,
+    output_path: Path,
+) -> None:
+    """Save a confusion matrix plot for a derived high/low-value label."""
+    y_true_np = np.asarray(y_true, dtype=float)
+    y_pred_np = np.asarray(y_pred, dtype=float)
+    y_true_bin = (y_true_np >= threshold).astype(int)
+    y_pred_bin = (y_pred_np >= threshold).astype(int)
+
+    # Confusion matrix counts
+    tn = int(np.sum((y_true_bin == 0) & (y_pred_bin == 0)))
+    fp = int(np.sum((y_true_bin == 0) & (y_pred_bin == 1)))
+    fn = int(np.sum((y_true_bin == 1) & (y_pred_bin == 0)))
+    tp = int(np.sum((y_true_bin == 1) & (y_pred_bin == 1)))
+
+    cm = np.array([[tn, fp], [fn, tp]], dtype=int)
+
+    fig, ax = plt.subplots(figsize=(5.5, 4.5))
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        cbar=False,
+        xticklabels=["Pred: Low", "Pred: High"],
+        yticklabels=["True: Low", "True: High"],
+        ax=ax,
+    )
+    ax.set_title(f"High-Value Confusion Matrix (threshold={threshold:,.0f})")
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    logging.info("Saved high-value confusion matrix to %s", output_path)
+
+
 def build_metadata(
     model: RandomForestRegressor,
     selected_metrics: dict[str, float],
     evaluations: dict[str, dict[str, object]],
+    tuning_info: dict[str, object] | None,
     data_summary: dict[str, int],
     train_rows: int,
     test_rows: int,
@@ -242,29 +365,34 @@ def build_metadata(
         benchmark_summary[key] = {
             "label": key.replace("_", " ").title(),
             "metrics": evaluation["metrics"],
+            "classification_metrics": evaluation.get("classification_metrics"),
         }
 
     return {
         "metrics": selected_metrics,
         "feature_importance": feature_importance,
+        "classification_metrics": evaluations.get("random_forest_tuned", {}).get("classification_metrics"),
         "benchmark_summary": {
             "selected_model": "RandomForestRegressor",
             "selection_reason": (
                 "Random Forest remains the production model because it captures non-linear feature interactions "
-                "and exposes feature importance for the app insights tab."
+                "and exposes feature importance for the app insights tab. The production estimator is selected "
+                "via randomized hyperparameter search optimized for MAE."
             ),
+            "tuning_info": tuning_info or {},
             "candidates": benchmark_summary,
         },
         "model": {
             "name": type(model).__name__,
             "artifact_path": str(MODEL_FILE),
-            "selected_model_key": "random_forest",
+            "selected_model_key": "random_forest_tuned",
             "hyperparameters": {
                 "n_estimators": model.n_estimators,
                 "random_state": model.random_state,
                 "max_depth": model.max_depth,
                 "min_samples_split": model.min_samples_split,
                 "min_samples_leaf": model.min_samples_leaf,
+                "max_features": model.max_features,
             },
         },
         "training": {
@@ -285,6 +413,7 @@ def build_metadata(
         "artifacts": {
             "predicted_vs_actual": str(PREDICTED_VS_ACTUAL_PLOT),
             "feature_importance": str(FEATURE_IMPORTANCE_PLOT),
+            "high_value_confusion_matrix": str(CONFUSION_MATRIX_PLOT),
         },
     }
 
@@ -320,10 +449,11 @@ def main() -> None:
 
     X_train, X_test, y_train, y_test = split_dataset(X, y)
     models = train_candidate_models(X_train, y_train)
+    tuning_info = models.pop("_tuning_info", None)
     evaluations = evaluate_candidates(models, X_test, y_test)
 
-    selected_model = models["random_forest"]
-    selected_metrics = evaluations["random_forest"]["metrics"]
+    selected_model = models["random_forest_tuned"]
+    selected_metrics = evaluations["random_forest_tuned"]["metrics"]
 
     save_model(selected_model, MODEL_FILE)
     save_feature_importance_plot(
@@ -335,14 +465,22 @@ def main() -> None:
     )
     save_predicted_vs_actual_plot(
         y_test,
-        evaluations["random_forest"]["predictions"],
+        evaluations["random_forest_tuned"]["predictions"],
         PREDICTED_VS_ACTUAL_PLOT,
+    )
+    high_value_threshold = float(np.median(y_test))
+    save_high_value_confusion_matrix(
+        y_test,
+        evaluations["random_forest_tuned"]["predictions"],
+        threshold=high_value_threshold,
+        output_path=CONFUSION_MATRIX_PLOT,
     )
 
     metadata = build_metadata(
         model=selected_model,
         selected_metrics=selected_metrics,
         evaluations=evaluations,
+        tuning_info=tuning_info,
         data_summary=data_summary,
         train_rows=len(X_train),
         test_rows=len(X_test),

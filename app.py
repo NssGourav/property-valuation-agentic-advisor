@@ -8,7 +8,6 @@ from validator import PropertyInputValidator
 
 from agent import PropertyAdvisorAgent
 from pdf_report import build_property_report
-from llm_config import has_groq_api_key
 
 PAGE_TITLE = "Intelligent Property Valuation"
 PAGE_ICON = "🏠"
@@ -119,11 +118,13 @@ class ValuationApp:
     def _load_model(self):
         if not MODEL_PATH.exists():
             st.error(f"### 🛑 Model Not Found")
-            st.warning(f"The core valuation model was not found at `{MODEL_PATH}`. \n\n"
-                       "**To fix this:**\n"
-                       "Run the training script in your terminal:\n"
-                       "```bash\npython train_model.py\n```\n"
-                       "This will download the dataset and train the Random Forest model.")
+            st.warning(
+                f"The core valuation model was not found at `{MODEL_PATH}`. \n\n"
+                "**To fix this:**\n"
+                "Run the training script in your terminal:\n"
+                "```bash\npython3 train_model.py\n```\n"
+                "This will download the dataset and train the Random Forest model."
+            )
             return None
         
         try:
@@ -143,7 +144,7 @@ class ValuationApp:
             return None
 
     def render_header(self):
-        advisory_mode = "Groq enabled" if has_groq_api_key() else "Fallback mode"
+        advisory_mode = "Template-based advisor"
         model_status = "Model loaded" if self.model is not None else "Model missing"
 
         st.markdown(
@@ -172,7 +173,7 @@ class ValuationApp:
             return
         st.sidebar.markdown("### Status")
         st.sidebar.caption(f"Model: {'loaded' if self.model is not None else 'missing'}")
-        st.sidebar.caption(f"Advisor: {'Groq' if has_groq_api_key() else 'Fallback'}")
+        st.sidebar.caption("Advisor: Template-based")
         if self.metadata and "metrics" in self.metadata:
             metrics = self.metadata["metrics"]
             st.sidebar.caption(f"R²: {metrics.get('r2', 0):.3f} • MAE: {_format_inr(metrics.get('mae', 0))}")
@@ -486,7 +487,7 @@ class ValuationApp:
             col_e, col_f, col_g = st.columns(3)
             col_e.metric("Parking", int(raw_inputs["parking"]))
             col_f.metric("Amenities", f"{int(result['amenities'])}/5")
-            col_g.metric("Advisory", "Groq" if has_groq_api_key() else "Fallback")
+            col_g.metric("Advisory", "Template")
 
         c_left, c_right = st.columns([1.15, 0.85], gap="large")
         with c_left:
@@ -577,11 +578,26 @@ def main():
         if metadata:
             
             # Metrics
-            m1, m2, m3 = st.columns(3)
+            m1, m2, m3, m4 = st.columns(4)
             metrics = metadata["metrics"]
             m1.metric("R² Score", f"{metrics['r2']:.3f}")
             m2.metric("MAE", f"₹{metrics['mae']:,.0f}")
             m3.metric("RMSE", f"₹{metrics['rmse']:,.0f}")
+            within_10 = metrics.get("within_10_pct")
+            m4.metric("Within 10%", f"{within_10 * 100:.1f}%" if isinstance(within_10, (int, float)) else "N/A")
+
+            if metadata.get("classification_metrics"):
+                with st.expander("Accuracy / Precision / Recall (derived label)"):
+                    cm = metadata["classification_metrics"]
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Accuracy", f"{cm.get('accuracy', 0) * 100:.1f}%")
+                    c2.metric("Precision", f"{cm.get('precision', 0) * 100:.1f}%")
+                    c3.metric("Recall", f"{cm.get('recall', 0) * 100:.1f}%")
+                    c4.metric("F1", f"{cm.get('f1', 0) * 100:.1f}%")
+                    st.caption(
+                        "These are computed on a derived high-value label (price ≥ median) for reporting; "
+                        "the production model is still a regression estimator."
+                    )
             
             st.markdown("---")
             st.subheader("Feature Importance")
@@ -606,7 +622,7 @@ def main():
             - **Property status:** Parking available, Guest room, Hot water heating.
             """)
         else:
-            st.warning("Model metadata not found. Please run `train_model.py` to generate insights.")
+            st.warning("Model metadata not found. Please run `python3 train_model.py` to generate insights.")
 
 
 if __name__ == "__main__":

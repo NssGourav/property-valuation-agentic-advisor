@@ -25,83 +25,50 @@ import logging
 import re
 from pathlib import Path
 
-from dotenv import load_dotenv
-from langchain_community.document_loaders import DirectoryLoader, TextLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain_groq import ChatGroq
-from langchain_core.prompts import ChatPromptTemplate
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain.chains import create_retrieval_chain
+import joblib
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
-from llm_config import get_groq_model, has_groq_api_key
-
-load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 # ------------------------------------------------------------
 # Constants
 # ------------------------------------------------------------
 KNOWLEDGE_BASE_DIR = Path("data/knowledge_base")
-FAISS_INDEX_DIR = Path("models/faiss_index")
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"   # Lightweight, CPU-friendly
-CHUNK_SIZE = 500                         # Characters per chunk
-CHUNK_OVERLAP = 50                       # Overlap to preserve context
-TOP_K_RESULTS = 3                        # Number of docs to retrieve
+INDEX_FILE = Path("models/knowledge_index.joblib")
+CHUNK_SIZE = 600
+CHUNK_OVERLAP = 80
+TOP_K_RESULTS = 3
 
 
 class RAGEngine:
     """
-    Retrieval-Augmented Generation engine backed by a FAISS vector store.
+    Lightweight retrieval engine over the local knowledge base.
 
     Attributes:
         docs_dir (Path): Directory containing source documents.
-        index_dir (Path): Directory where the FAISS index is persisted.
-        embedding_model (str): HuggingFace model name for text embeddings.
+        index_file (Path): Path where the TF-IDF index is persisted.
 
     Note:
-        The engine persists a local FAISS index so retrieval can be reused
-        across app restarts without rebuilding embeddings every time.
+        This implementation intentionally avoids LangChain/LLMs. It provides
+        fast, deterministic retrieval (TF-IDF + cosine similarity) to ground
+        the advisory layer in the project knowledge base.
     """
 
     def __init__(
         self,
         docs_dir: str | Path = KNOWLEDGE_BASE_DIR,
-        index_dir: str | Path = FAISS_INDEX_DIR,
-        embedding_model: str = EMBEDDING_MODEL,
+        index_file: str | Path = INDEX_FILE,
     ) -> None:
         self.docs_dir = Path(docs_dir)
-        self.index_dir = Path(index_dir)
-        self.embedding_model = embedding_model
-        self.trusted = True  # Default to True for local dev; gate in production
-        self._vector_store = None
+        self.index_file = Path(index_file)
+        self._vectorizer: TfidfVectorizer | None = None
+        self._matrix = None
+        self._chunks: list[dict[str, str]] = []
 
     def _index_exists(self) -> bool:
-        return self.index_dir.exists() and any(self.index_dir.iterdir())
-
-    def _get_embeddings(self) -> HuggingFaceEmbeddings:
-        return HuggingFaceEmbeddings(model_name=self.embedding_model)
-
-    def _load_vector_store(self):
-        if self._vector_store is not None:
-            return self._vector_store
-
-        if not self._index_exists():
-            return None
-
-        try:
-            logging.info(f"Loading existing FAISS index from {self.index_dir}...")
-            self._vector_store = FAISS.load_local(
-                str(self.index_dir),
-                self._get_embeddings(),
-                allow_dangerous_deserialization=self.trusted,
-            )
-            return self._vector_store
-        except Exception as e:
-            logging.warning(f"Failed to load existing FAISS index: {e}")
-            self._vector_store = None
-            return None
+        return self.index_file.exists()
 
     def _load_documents(self):
         if not self.docs_dir.exists():
@@ -109,13 +76,44 @@ class RAGEngine:
             return []
 
         logging.info(f"Loading documents from {self.docs_dir}...")
-        loader = DirectoryLoader(str(self.docs_dir), glob="**/*.txt", loader_cls=TextLoader)
-        return loader.load()
+        documents: list[tuple[str, str]] = []
+        for path in sorted(self.docs_dir.glob("**/*.txt")):
+            try:
+                text = path.read_text(encoding="utf-8", errors="ignore")
+            except Exception as exc:
+                logging.warning("Failed reading %s: %s", path, exc)
+                continue
+            documents.append((str(path), text))
+        return documents
+
+    def _chunk_text(self, text: str) -> list[str]:
+        normalized = re.sub(r"\r\n?", "\n", text).strip()
+        if not normalized:
+            return []
+
+        parts = [p.strip() for p in normalized.split("\n\n") if p.strip()]
+        chunks: list[str] = []
+        for part in parts:
+            if len(part) <= CHUNK_SIZE:
+                chunks.append(part)
+                continue
+
+            start = 0
+            while start < len(part):
+                end = min(len(part), start + CHUNK_SIZE)
+                chunk = part[start:end].strip()
+                if chunk:
+                    chunks.append(chunk)
+                if end >= len(part):
+                    break
+                start = max(0, end - CHUNK_OVERLAP)
+
+        return chunks
 
     def build_index(self, force: bool = False) -> bool:
-        """Load documents, chunk them, and build the FAISS vector index."""
-        if not force and self._load_vector_store() is not None:
-            logging.info("Reusing persisted FAISS index.")
+        """Load documents, chunk them, and build a persisted TF-IDF index."""
+        if not force and self._load_index():
+            logging.info("Reusing persisted knowledge index.")
             return True
 
         documents = self._load_documents()
@@ -124,67 +122,70 @@ class RAGEngine:
             logging.warning("No documents found to build the knowledge base.")
             return False
 
-        logging.info(f"Loaded {len(documents)} documents. Splitting into chunks...")
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=CHUNK_SIZE, 
-            chunk_overlap=CHUNK_OVERLAP
-        )
-        splits = text_splitter.split_documents(documents)
-        
-        logging.info(f"Initializing HuggingFace Embeddings: {self.embedding_model}")
-        embeddings = self._get_embeddings()
+        chunks: list[dict[str, str]] = []
+        for source, text in documents:
+            for chunk in self._chunk_text(text):
+                chunks.append({"source": source, "text": chunk})
 
-        logging.info("Building FAISS Vector Store...")
-        self._vector_store = FAISS.from_documents(documents=splits, embedding=embeddings)
-        
-        self.index_dir.mkdir(parents=True, exist_ok=True)
-        self._vector_store.save_local(str(self.index_dir))
-        logging.info(f"FAISS index successfully saved to {self.index_dir}")
+        if not chunks:
+            logging.warning("No chunks produced from knowledge base.")
+            return False
+
+        texts = [c["text"] for c in chunks]
+        vectorizer = TfidfVectorizer(
+            lowercase=True,
+            ngram_range=(1, 2),
+            min_df=1,
+            max_features=50_000,
+        )
+        matrix = vectorizer.fit_transform(texts)
+
+        payload = {
+            "vectorizer": vectorizer,
+            "matrix": matrix,
+            "chunks": chunks,
+        }
+        self.index_file.parent.mkdir(parents=True, exist_ok=True)
+        joblib.dump(payload, self.index_file)
+
+        self._vectorizer = vectorizer
+        self._matrix = matrix
+        self._chunks = chunks
+        logging.info("Knowledge index saved to %s (%d chunks).", self.index_file, len(chunks))
         return True
 
     def query(self, question: str, top_k: int = TOP_K_RESULTS) -> str:
         """
-        Retrieve relevant document chunks and return either a grounded answer
-        from Groq or the raw retrieved context when Groq is unavailable.
+        Retrieve relevant document chunks and return raw context.
 
         Args:
             question: Natural language question about real estate.
             top_k: Number of top relevant chunks to retrieve.
 
         Returns:
-            A Groq-generated answer grounded in retrieved context, or a
-            newline-joined string of the top retrieved document chunks when
-            GROQ_API_KEY is not configured.
+            A newline-joined string of the top retrieved document chunks.
         """
-        if self._load_vector_store() is None and not self.build_index():
+        if not self._load_index() and not self.build_index():
             logging.warning("Knowledge base unavailable. Returning fallback context.")
             return "Knowledge base is currently unavailable."
 
-        retriever = self._vector_store.as_retriever(search_kwargs={"k": top_k})
-        
-        # When Groq is unavailable, return raw retrieved context instead of a generated answer.
-        if not has_groq_api_key():
-            logging.warning("No GROQ_API_KEY found. Returning raw context chunks instead of LLM answer.")
-            docs = retriever.invoke(question)
-            return "\n\n".join([d.page_content for d in docs])
-            
-        llm = ChatGroq(model=get_groq_model(), temperature=0.0)
-        
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a real estate investment advisor. Answer the user's question based strictly on the provided context. If the answer is not in the context, say you don't know.\n\nContext: {context}"),
-            ("human", "{input}")
-        ])
-        
-        question_answer_chain = create_stuff_documents_chain(llm, prompt)
-        rag_chain = create_retrieval_chain(retriever, question_answer_chain)
-        
-        logging.info(f"Querying LLM for: {question}")
-        response = rag_chain.invoke({"input": question})
-        return response["answer"]
+        if not self._vectorizer or self._matrix is None:
+            return "Knowledge base is currently unavailable."
+
+        query_vec = self._vectorizer.transform([question])
+        scores = cosine_similarity(self._matrix, query_vec).reshape(-1)
+        if scores.size == 0:
+            return "No relevant context found."
+
+        k = max(1, min(int(top_k), scores.size))
+        top_idx = np.argpartition(-scores, kth=k - 1)[:k]
+        top_sorted = top_idx[np.argsort(-scores[top_idx])]
+        return "\n\n".join(self._chunks[i]["text"] for i in top_sorted)
 
     def retrieve_comps(self, property_details: dict, top_k: int = 3) -> list[dict]:
         """
-        Retrieve the top-k most similar comparable property sales.
+        Retrieve the top-k most similar comparable property sales from
+        `comparable_sales.txt` using a simple distance-based scorer.
         
         Args:
             property_details: Dictionary with keys like area, bedrooms, bathrooms, 
@@ -194,39 +195,55 @@ class RAGEngine:
         Returns:
             List of comparable property transactions with details extracted.
         """
-        if self._load_vector_store() is None and not self.build_index():
-            logging.warning("Knowledge base unavailable. Returning no comparable sales.")
+        comps_path = self.docs_dir / "comparable_sales.txt"
+        if not comps_path.exists():
+            logging.warning("Comparable sales file missing at %s", comps_path)
             return []
-        
-        # Build a natural language query from property details
-        query_parts = []
-        if property_details.get("bedrooms"):
-            query_parts.append(f"{property_details['bedrooms']}-bedroom")
-        if property_details.get("area"):
-            query_parts.append(f"{property_details['area']} sq ft")
-        if property_details.get("basement") == "Yes":
-            query_parts.append("with basement")
-        if property_details.get("airconditioning") == "Yes":
-            query_parts.append("with air conditioning")
-        if property_details.get("mainroad") == "Yes":
-            query_parts.append("on main road")
-        
-        search_query = " ".join(query_parts) + " recent sale comparable transaction"
-        
-        logging.info(f"Searching for comps with query: {search_query}")
-        
-        retriever = self._vector_store.as_retriever(search_kwargs={"k": top_k})
-        docs = retriever.invoke(search_query)
-        
-        # Parse document content into structured comps
-        comps = []
-        for i, doc in enumerate(docs):
-            content = doc.page_content
-            comp = self._parse_comp_from_text(content, i + 1)
+
+        raw_text = comps_path.read_text(encoding="utf-8", errors="ignore")
+        blocks = re.split(r"\n(?=Comparable Property\s+\d+)", raw_text)
+        parsed: list[dict] = []
+        for idx, block in enumerate(blocks):
+            comp = self._parse_comp_from_text(block, idx + 1)
             if comp:
-                comps.append(comp)
-        
-        return comps
+                parsed.append(comp)
+
+        if not parsed:
+            return []
+
+        target_area = float(property_details.get("area") or 0)
+        target_beds = float(property_details.get("bedrooms") or 0)
+        target_baths = float(property_details.get("bathrooms") or 0)
+        target_basement = str(property_details.get("basement") or "No").lower() == "yes"
+        target_ac = str(property_details.get("airconditioning") or "No").lower() == "yes"
+        target_mainroad = str(property_details.get("mainroad") or "No").lower() == "yes"
+
+        def score(comp: dict) -> float:
+            comp_area = float(comp.get("area") or 0)
+            comp_beds = float(comp.get("bedrooms") or 0)
+            comp_baths = float(comp.get("bathrooms") or 0)
+
+            # Relative numeric distance with small eps for stability.
+            eps = 1e-6
+            area_dist = abs(target_area - comp_area) / max(target_area, comp_area, eps)
+            bed_dist = abs(target_beds - comp_beds) / max(target_beds, comp_beds, eps)
+            bath_dist = abs(target_baths - comp_baths) / max(target_baths, comp_baths, eps)
+
+            basement_dist = 0.0 if (str(comp.get("basement") or "No").lower() == "yes") == target_basement else 1.0
+            ac_dist = 0.0 if (str(comp.get("airconditioning") or "No").lower() == "yes") == target_ac else 1.0
+            mainroad_dist = 0.0 if (str(comp.get("mainroad") or "No").lower() == "yes") == target_mainroad else 1.0
+
+            return (
+                0.55 * area_dist
+                + 0.20 * bed_dist
+                + 0.15 * bath_dist
+                + 0.04 * basement_dist
+                + 0.04 * ac_dist
+                + 0.02 * mainroad_dist
+            )
+
+        ranked = sorted(parsed, key=score)
+        return ranked[: max(1, min(int(top_k), len(ranked)))]
 
     def _parse_comp_from_text(self, text: str, comp_number: int) -> dict | None:
         """
@@ -274,5 +291,20 @@ class RAGEngine:
 
     @property
     def is_ready(self) -> bool:
-        """Returns True if a FAISS index is available in memory or on disk."""
-        return self._vector_store is not None or self._index_exists()
+        """Returns True if a knowledge index is available in memory or on disk."""
+        return self._vectorizer is not None or self._index_exists()
+
+    def _load_index(self) -> bool:
+        if self._vectorizer is not None and self._matrix is not None and self._chunks:
+            return True
+        if not self._index_exists():
+            return False
+        try:
+            payload = joblib.load(self.index_file)
+            self._vectorizer = payload.get("vectorizer")
+            self._matrix = payload.get("matrix")
+            self._chunks = payload.get("chunks") or []
+            return self._vectorizer is not None and self._matrix is not None and bool(self._chunks)
+        except Exception as exc:
+            logging.warning("Failed to load knowledge index %s: %s", self.index_file, exc)
+            return False
