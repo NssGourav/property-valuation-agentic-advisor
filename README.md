@@ -12,19 +12,19 @@ A high-performance hybrid AI/ML platform for real estate valuation. It pairs a d
 The core objective is to estimate property value from historical housing data and then explain that estimate with grounded, retrieval-backed investment advice.
 
 ## 📐 System Architecture
-The system follows an **Agentic Workflow** where ML predictions are contextually enriched by a knowledge base before being summarized by an LLM.
+The system follows a **deterministic workflow** where ML predictions are enriched by a local knowledge base (retrieval) and summarized by a template-based advisor (no LLM dependencies).
 
 ```mermaid
 graph TD
     User([User Input]) --> Val{Input Validator}
     Val -- Invalid --> UI[Streamlit Errors/Warnings]
     Val -- Valid --> ML[ML Price Predictor<br/>Random Forest]
-    Val -- Valid --> RAG[RAG Engine<br/>FAISS + S-Transformers]
+    Val -- Valid --> RAG[RAG Engine<br/>TF-IDF retrieval]
     
-    ML --> Agent[LangGraph Advisor]
+    ML --> Agent[Template Advisor]
     RAG --> Agent
     
-    Agent --> Adv[AI Investment Advice]
+    Agent --> Adv[Investment Advice]
     Adv --> UI
     Adv --> PDF[PDF Brief Generator]
     UI --> PDF
@@ -32,8 +32,8 @@ graph TD
 
 ### Core Components
 - **Deterministic Brain (ML)**: A Random Forest model trained on historical housing data to provide baseline valuations.
-- **Contextual Memory (RAG)**: A FAISS vector store that retrieves real-time market trends and comparable sales.
-- **Agentic Orchestrator**: A LangGraph workflow that reasons over the ML prediction and retrieved context using Groq's Llama-3.1.
+- **Contextual Memory (RAG)**: A lightweight retrieval index over the local knowledge base that surfaces market trends and relevant notes.
+- **Advisory Layer**: A template-based advisor that combines the ML estimate, retrieved context, and comparable sales.
 - **Presentation Layer**: A professional Streamlit UI with PDF export capabilities for institutional-grade briefs.
 
 ## 🎯 Demo Guidance
@@ -48,9 +48,9 @@ graph TD
 - **Expectation**: The `validator.py` will trigger a **Soft Warning** (Unusual area for bedrooms).
 - **Benefit**: Demonstrates the system's ability to prevent "Garbage In, Garbage Out" scenarios.
 
-### 3. The "Fallback Path" (No API Key)
-- **Action**: Run the app without `GROQ_API_KEY`.
-- **Expectation**: The app provides a "Fallback Summary" using raw RAG context, showing resilience to service outages.
+### 3. The "Deterministic Path" (No API Key Needed)
+- **Action**: Run the app without any LLM/API keys.
+- **Expectation**: The app always generates an advisory summary using deterministic retrieval + simple decision rules.
 
 ## 📊 Model & Metrics
 The model is trained on the [Kaggle Housing dataset](https://www.kaggle.com/datasets/yasserh/housing-prices-dataset) (546 records).
@@ -75,15 +75,21 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt 
 ```
 
+### 2. Train the Model Locally
+If `models/house_model.pkl` is missing, train the model:
+```bash
+python3 src/train_model.py
+```
+`models/house_model.pkl` is treated as a build artifact and is not committed to git.
+
 ### 3. Run the App
 ```bash
-streamlit run app.py
+streamlit run src/app.py
 ```
 
 ### Environment Configuration
 | Variable | Description |
 | :--- | :--- |
-| `GROQ_API_KEY` | Powers the Llama-3.1 advisory engine. |
 | `KAGGLE_USERNAME` | Required if retraining the model from source. |
 
 ### Running Tests
@@ -109,12 +115,12 @@ The system is designed to be resilient to missing dependencies:
 - **Missing FAISS Index**: The system attempts to rebuild the index if source documents are present.
 
 ## 📂 Project Structure
-- `app.py`: Streamlit frontend.
-- `agent.py`: LangGraph advisory logic.
-- `rag_engine.py`: FAISS/Vector search implementation.
-- `train_model.py`: ML pipeline (Kaggle -> metrics).
-- `validator.py`: Input guardrails.
-- `pdf_report.py`: Automated PDF reporting via ReportLab.
+- `src/app.py`: Streamlit frontend.
+- `src/agent.py`: Template-based advisor (no LLM dependencies).
+- `src/rag_engine.py`: Knowledge-base retrieval + comparable-sales matcher.
+- `src/train_model.py`: ML pipeline (download -> preprocess -> tuning -> evaluation).
+- `src/validator.py`: Input guardrails.
+- `src/pdf_report.py`: Automated PDF reporting via ReportLab.
 
 ## 🛡️ Limitations & Roadmap
 - **Current**: Static knowledge base in `comparable_sales.txt`.
