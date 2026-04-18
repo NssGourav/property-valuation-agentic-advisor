@@ -28,6 +28,7 @@ data/knowledge_base/*
 !data/knowledge_base/*.txt
 # Model artifacts (do not commit)
 models/*.pkl
+!models/house_model.pkl
 models/*.joblib
 models/faiss_index/
 

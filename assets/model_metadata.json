@@ -1,31 +1,61 @@
 {
     "metrics": {
-        "r2": 0.5816628763541574,
-        "mae": 1080958.0282874617,
-        "rmse": 1454136.9874011143
+        "r2": 0.5915242159451239,
+        "mae": 1065346.6115268685,
+        "rmse": 1436895.8015257197,
+        "mape": 0.23482889175660843,
+        "within_10_pct": 0.30275229357798167,
+        "within_20_pct": 0.5229357798165137
     },
     "feature_importance": {
-        "area": 0.5014308011247796,
-        "bedrooms": 0.054705902597115094,
-        "bathrooms": 0.15559796292386655,
-        "stories": 0.06328092342498665,
-        "mainroad": 0.014320460139945163,
-        "guestroom": 0.018656390488853553,
-        "basement": 0.04069205719347192,
-        "hotwaterheating": 0.0198037701941527,
-        "airconditioning": 0.06746781686147177,
-        "parking": 0.0640439150513571
+        "area": 0.35261224275577535,
+        "bedrooms": 0.07188847108149914,
+        "bathrooms": 0.17994593456204183,
+        "stories": 0.07760421559354298,
+        "mainroad": 0.02751439451058308,
+        "guestroom": 0.027696273198103555,
+        "basement": 0.04262051600694715,
+        "hotwaterheating": 0.018829521942085394,
+        "airconditioning": 0.11456350649934072,
+        "parking": 0.08672492385008072
+    },
+    "classification_metrics": {
+        "accuracy": 0.8073394495412844,
+        "precision": 0.8571428571428571,
+        "recall": 0.75,
+        "f1": 0.8,
+        "threshold": 4550000.0
     },
     "benchmark_summary": {
         "selected_model": "RandomForestRegressor",
-        "selection_reason": "Random Forest remains the production model because it captures non-linear feature interactions and exposes feature importance for the app insights tab.",
+        "selection_reason": "Random Forest remains the production model because it captures non-linear feature interactions and exposes feature importance for the app insights tab. The production estimator is selected via randomized hyperparameter search optimized for MAE.",
+        "tuning_info": {
+            "best_params": {
+                "n_estimators": 200,
+                "min_samples_split": 4,
+                "min_samples_leaf": 1,
+                "max_features": "log2",
+                "max_depth": 10
+            },
+            "best_cv_score_neg_mae": -763002.3157586104
+        },
         "candidates": {
-            "random_forest": {
-                "label": "Random Forest",
+            "random_forest_default": {
+                "label": "Random Forest Default",
                 "metrics": {
-                    "r2": 0.5816628763541574,
-                    "mae": 1080958.0282874617,
-                    "rmse": 1454136.9874011143
+                    "r2": 0.5858358193190872,
+                    "mae": 1073817.812104995,
+                    "rmse": 1446866.2497887283,
+                    "mape": 0.23752021289436664,
+                    "within_10_pct": 0.3119266055045872,
+                    "within_20_pct": 0.5412844036697247
+                },
+                "classification_metrics": {
+                    "accuracy": 0.7889908256880734,
+                    "precision": 0.8367346938775511,
+                    "recall": 0.7321428571428571,
+                    "f1": 0.780952380952381,
+                    "threshold": 4550000.0
                 }
             },
             "linear_regression": {
@@ -33,7 +63,35 @@
                 "metrics": {
                     "r2": 0.6267717420522674,
                     "mae": 999835.9836711531,
-                    "rmse": 1373502.2561769912
+                    "rmse": 1373502.2561769912,
+                    "mape": 0.22366852768622847,
+                    "within_10_pct": 0.28440366972477066,
+                    "within_20_pct": 0.5688073394495413
+                },
+                "classification_metrics": {
+                    "accuracy": 0.8256880733944955,
+                    "precision": 0.8245614035087719,
+                    "recall": 0.8392857142857143,
+                    "f1": 0.831858407079646,
+                    "threshold": 4550000.0
+                }
+            },
+            "random_forest_tuned": {
+                "label": "Random Forest Tuned",
+                "metrics": {
+                    "r2": 0.5915242159451239,
+                    "mae": 1065346.6115268685,
+                    "rmse": 1436895.8015257197,
+                    "mape": 0.23482889175660843,
+                    "within_10_pct": 0.30275229357798167,
+                    "within_20_pct": 0.5229357798165137
+                },
+                "classification_metrics": {
+                    "accuracy": 0.8073394495412844,
+                    "precision": 0.8571428571428571,
+                    "recall": 0.75,
+                    "f1": 0.8,
+                    "threshold": 4550000.0
                 }
             }
         }
@@ -41,17 +99,18 @@
     "model": {
         "name": "RandomForestRegressor",
         "artifact_path": "models/house_model.pkl",
-        "selected_model_key": "random_forest",
+        "selected_model_key": "random_forest_tuned",
         "hyperparameters": {
-            "n_estimators": 100,
+            "n_estimators": 200,
             "random_state": 42,
-            "max_depth": null,
-            "min_samples_split": 2,
-            "min_samples_leaf": 1
+            "max_depth": 10,
+            "min_samples_split": 4,
+            "min_samples_leaf": 1,
+            "max_features": "log2"
         }
     },
     "training": {
-        "trained_at_utc": "2026-04-14T12:56:49.586379+00:00",
+        "trained_at_utc": "2026-04-18T22:18:09.233284+00:00",
         "dataset_path": "data/Housing.csv",
         "test_size": 0.2,
         "random_state": 42,
@@ -86,6 +145,7 @@
     },
     "artifacts": {
         "predicted_vs_actual": "assets/predicted_vs_actual.png",
-        "feature_importance": "assets/feature_importance.png"
+        "feature_importance": "assets/feature_importance.png",
+        "high_value_confusion_matrix": "assets/high_value_confusion_matrix.png"
     }
 }
