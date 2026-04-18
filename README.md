@@ -80,7 +80,7 @@ If `models/house_model.pkl` is missing, train the model:
 ```bash
 python3 src/train_model.py
 ```
-`models/house_model.pkl` is treated as a build artifact and is not committed to git.
+For the hosted Streamlit demo, a pre-trained `models/house_model.pkl` is included in the repo to avoid retraining during deployment.
 
 ### 3. Run the App
 ```bash
