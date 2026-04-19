@@ -4,6 +4,7 @@ import joblib
 import json
 from datetime import datetime
 from pathlib import Path
+import textwrap
 from src.validator import PropertyInputValidator
 
 from src.agent import PropertyAdvisorAgent
@@ -30,11 +31,24 @@ def _inject_global_styles() -> None:
     st.markdown(
         """
         <style>
+          :root {
+            --pv-bg: #0B1220;
+            --pv-surface: rgba(15, 23, 42, 0.62);
+            --pv-border: rgba(148, 163, 184, 0.22);
+            --pv-text: rgba(226, 232, 240, 0.98);
+            --pv-muted: rgba(148, 163, 184, 0.95);
+            --pv-indigo: rgba(99, 102, 241, 1);
+            --pv-emerald: rgba(16, 185, 129, 1);
+            --pv-shadow: 0 18px 50px rgba(2, 6, 23, 0.25);
+          }
+
           /* Page background + default typography */
           .stApp {
-            background: radial-gradient(1200px 800px at 10% 0%, rgba(99, 102, 241, 0.14), transparent 55%),
-                        radial-gradient(900px 700px at 90% 10%, rgba(16, 185, 129, 0.12), transparent 55%),
-                        linear-gradient(180deg, rgba(2, 6, 23, 0.0) 0%, rgba(2, 6, 23, 0.03) 100%);
+            background:
+              radial-gradient(1100px 750px at 10% 0%, rgba(99, 102, 241, 0.18), transparent 56%),
+              radial-gradient(1000px 700px at 92% 8%, rgba(16, 185, 129, 0.14), transparent 58%),
+              radial-gradient(900px 700px at 50% 100%, rgba(56, 189, 248, 0.10), transparent 55%),
+              linear-gradient(180deg, rgba(2, 6, 23, 0.0) 0%, rgba(2, 6, 23, 0.10) 100%);
           }
 
           /* Reduce awkward top padding */
@@ -45,10 +59,13 @@ def _inject_global_styles() -> None:
           /* Hero */
           .pv-hero {
             padding: 1.25rem 1.25rem 1.1rem 1.25rem;
-            border: 1px solid rgba(148, 163, 184, 0.25);
+            border: 1px solid var(--pv-border);
             border-radius: 16px;
-            background: linear-gradient(135deg, rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.55));
-            box-shadow: 0 10px 30px rgba(2, 6, 23, 0.10);
+            background:
+              radial-gradient(700px 300px at 15% 20%, rgba(99, 102, 241, 0.18), transparent 60%),
+              radial-gradient(600px 260px at 85% 30%, rgba(16, 185, 129, 0.14), transparent 60%),
+              linear-gradient(135deg, rgba(15, 23, 42, 0.78), rgba(15, 23, 42, 0.55));
+            box-shadow: var(--pv-shadow);
             margin-bottom: 1rem;
           }
           .pv-hero-title {
@@ -56,10 +73,11 @@ def _inject_global_styles() -> None:
             font-weight: 750;
             letter-spacing: -0.02em;
             line-height: 1.2;
+            color: var(--pv-text);
           }
           .pv-hero-subtitle {
             margin-top: 0.35rem;
-            color: rgba(148, 163, 184, 0.95);
+            color: var(--pv-muted);
             font-size: 0.95rem;
           }
           .pv-badges {
@@ -75,21 +93,103 @@ def _inject_global_styles() -> None:
             padding: 0.22rem 0.55rem;
             border-radius: 999px;
             font-size: 0.82rem;
-            border: 1px solid rgba(148, 163, 184, 0.25);
-            background: rgba(2, 6, 23, 0.35);
+            border: 1px solid var(--pv-border);
+            background: rgba(2, 6, 23, 0.42);
+            color: rgba(226, 232, 240, 0.92);
           }
 
           /* Sidebar polish */
           section[data-testid="stSidebar"] {
-            border-right: 1px solid rgba(148, 163, 184, 0.18);
+            border-right: 1px solid rgba(148, 163, 184, 0.16);
           }
-          section[data-testid="stSidebar"] .stMarkdown {
-            color: rgba(15, 23, 42, 0.95);
+          section[data-testid="stSidebar"] > div {
+            background:
+              radial-gradient(900px 600px at 20% 0%, rgba(99, 102, 241, 0.10), transparent 55%),
+              linear-gradient(180deg, rgba(15, 23, 42, 0.60), rgba(15, 23, 42, 0.72));
           }
 
           /* Buttons */
           button[kind="primary"] {
             border-radius: 12px !important;
+          }
+
+          /* Tabs spacing */
+          div[data-testid="stTabs"] button {
+            border-radius: 12px !important;
+          }
+
+          /* Splash screen */
+          .pv-splash {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: grid;
+            place-items: center;
+            pointer-events: none;
+            background:
+              radial-gradient(1200px 800px at 10% 0%, rgba(99, 102, 241, 0.32), transparent 60%),
+              radial-gradient(1000px 700px at 90% 12%, rgba(16, 185, 129, 0.22), transparent 60%),
+              linear-gradient(180deg, rgba(2, 6, 23, 0.80), rgba(2, 6, 23, 0.92));
+            animation: pvSplashOut 0.65s ease forwards;
+            animation-delay: 1.15s;
+          }
+          .pv-splash-card {
+            width: min(520px, calc(100vw - 3rem));
+            border-radius: 18px;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: rgba(15, 23, 42, 0.65);
+            box-shadow: 0 25px 70px rgba(2, 6, 23, 0.40);
+            padding: 1.15rem 1.2rem;
+            backdrop-filter: blur(10px);
+          }
+          .pv-splash-top {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+          }
+          .pv-splash-mark {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.95), rgba(16, 185, 129, 0.9));
+            color: white;
+            font-size: 1.3rem;
+          }
+          .pv-splash-title {
+            font-weight: 760;
+            letter-spacing: -0.02em;
+            font-size: 1.05rem;
+            color: rgba(226, 232, 240, 0.98);
+            line-height: 1.1;
+          }
+          .pv-splash-sub {
+            margin-top: 0.25rem;
+            color: rgba(148, 163, 184, 0.95);
+            font-size: 0.92rem;
+          }
+          .pv-splash-bar {
+            margin-top: 0.85rem;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.14);
+            overflow: hidden;
+          }
+          .pv-splash-bar > div {
+            height: 100%;
+            width: 40%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.95), rgba(56, 189, 248, 0.9), rgba(16, 185, 129, 0.9));
+            animation: pvLoad 1.25s ease-in-out infinite;
+          }
+          @keyframes pvLoad {
+            0% { transform: translateX(-60%); opacity: 0.75; }
+            50% { transform: translateX(120%); opacity: 1; }
+            100% { transform: translateX(260%); opacity: 0.75; }
+          }
+          @keyframes pvSplashOut {
+            to { opacity: 0; visibility: hidden; }
           }
         </style>
         """,
@@ -107,6 +207,39 @@ def _format_inr(value: float) -> str:
 @st.cache_resource
 def load_advisor_agent():
     return PropertyAdvisorAgent()
+
+
+def _render_splash_screen() -> None:
+    """
+    Displays a lightweight splash overlay once per browser session.
+
+    Notes:
+    - Streamlit reruns the script often; we guard with session_state.
+    - The overlay self-dismisses via CSS animation (no JS).
+    """
+    if st.session_state.get("pv_splash_shown"):
+        return
+    st.session_state.pv_splash_shown = True
+
+    st.markdown(
+        textwrap.dedent(
+            f"""
+            <div class="pv-splash" role="presentation">
+              <div class="pv-splash-card">
+                <div class="pv-splash-top">
+                  <div class="pv-splash-mark">{PAGE_ICON}</div>
+                  <div>
+                    <div class="pv-splash-title">{PAGE_TITLE}</div>
+                    <div class="pv-splash-sub">Valuation • Comps • PDF brief</div>
+                  </div>
+                </div>
+                <div class="pv-splash-bar"><div></div></div>
+              </div>
+            </div>
+            """
+        ),
+        unsafe_allow_html=True,
+    )
 
 
 class ValuationApp:
@@ -180,6 +313,34 @@ class ValuationApp:
 
         if "pv_last_result" not in st.session_state:
             st.session_state.pv_last_result = None
+
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### Quick presets")
+        c1, c2 = st.sidebar.columns(2)
+        if c1.button("Happy path", use_container_width=True):
+            st.session_state.pv_area = 2500
+            st.session_state.pv_bedrooms = 3
+            st.session_state.pv_bathrooms = 2
+            st.session_state.pv_stories = 2
+            st.session_state.pv_parking = 2
+            st.session_state.pv_mainroad = True
+            st.session_state.pv_guestroom = False
+            st.session_state.pv_basement = False
+            st.session_state.pv_hotwaterheating = False
+            st.session_state.pv_airconditioning = True
+            st.rerun()
+        if c2.button("Outlier demo", use_container_width=True):
+            st.session_state.pv_area = 5000
+            st.session_state.pv_bedrooms = 1
+            st.session_state.pv_bathrooms = 1
+            st.session_state.pv_stories = 2
+            st.session_state.pv_parking = 1
+            st.session_state.pv_mainroad = False
+            st.session_state.pv_guestroom = False
+            st.session_state.pv_basement = True
+            st.session_state.pv_hotwaterheating = False
+            st.session_state.pv_airconditioning = True
+            st.rerun()
 
         with st.sidebar.form("valuation_form"):
             st.markdown("### Property details")
@@ -454,7 +615,17 @@ class ValuationApp:
             c1, c2 = st.columns([1.25, 1])
             with c1:
                 st.markdown("### Estimated value")
-                st.markdown(f"## {_format_inr(prediction)}")
+                if self.metadata and "metrics" in self.metadata and isinstance(self.metadata["metrics"].get("mae"), (int, float)):
+                    mae = float(self.metadata["metrics"]["mae"])
+                    lo = prediction - mae
+                    hi = prediction + mae
+                    a, b = st.columns([1, 1])
+                    with a:
+                        st.markdown(f"## {_format_inr(prediction)}")
+                    with b:
+                        st.metric("Typical range (±MAE)", f"{_format_inr(lo)} – {_format_inr(hi)}")
+                else:
+                    st.markdown(f"## {_format_inr(prediction)}")
                 subtitle = "This is a model estimate from historical training data; treat as a directional baseline."
                 if isinstance(generated_at, datetime):
                     subtitle = f"{subtitle} Generated {generated_at.strftime('%Y-%m-%d %H:%M')}."
@@ -563,6 +734,7 @@ class ValuationApp:
 
 def main():
     _inject_global_styles()
+    _render_splash_screen()
     app = ValuationApp()
     
     app.render_sidebar()
